@@ -1,15 +1,38 @@
+# Python
 __pycache__/
 *.py[cod]
 *.egg-info/
+*.egg
+.eggs/
+
+# Build
 dist/
 build/
-.eggs/
-*.egg
-.ruff_cache/
+site/
+
+# Testing & Coverage
 .pytest_cache/
+.tox/
+.coverage
+htmlcov/
+
+# Linting
+.ruff_cache/
 .mypy_cache/
-*.sqlite3
+
+# Environment
 .env
 .venv/
 venv/
-site/
+
+# IDEs
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+
+# Database
+*.sqlite3
