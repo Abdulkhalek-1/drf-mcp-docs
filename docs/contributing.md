@@ -148,4 +148,4 @@ Include reproduction steps, environment details, and error messages when reporti
 
 ## License
 
-By contributing, you agree that your contributions will be licensed under the [MIT License](../LICENSE).
+By contributing, you agree that your contributions will be licensed under the [MIT License](https://github.com/Abdulkhalek-1/drf-mcp-docs/blob/main/LICENSE).

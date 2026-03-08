@@ -28,5 +28,5 @@ drf-mcp-docs exposes your Django REST Framework API documentation through the Mo
 
 ### Project
 
-- **[Changelog](../CHANGELOG.md)** — Release history
-- **[License](../LICENSE)** — MIT License
+- **[Changelog](https://github.com/Abdulkhalek-1/drf-mcp-docs/blob/main/CHANGELOG.md)** — Release history
+- **[License](https://github.com/Abdulkhalek-1/drf-mcp-docs/blob/main/LICENSE)** — MIT License
