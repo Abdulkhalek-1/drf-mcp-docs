@@ -1,0 +1,73 @@
+name: Feature Request
+description: Suggest a new feature or enhancement for drf-mcp-docs
+title: "[Feature]: "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for suggesting a feature! Please describe what you'd like to see added to drf-mcp-docs.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem or Motivation
+      description: What problem does this feature solve? What use case does it enable?
+      placeholder: "I'm trying to use drf-mcp-docs with my React project and I need..."
+    validations:
+      required: true
+
+  - type: textarea
+    id: solution
+    attributes:
+      label: Proposed Solution
+      description: Describe the feature you'd like. How should it work?
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives Considered
+      description: Have you considered any alternative solutions or workarounds?
+    validations:
+      required: false
+
+  - type: dropdown
+    id: category
+    attributes:
+      label: Feature Category
+      description: Which area of drf-mcp-docs does this feature relate to?
+      options:
+        - MCP Resources (new resource endpoints)
+        - MCP Tools (new tools or tool improvements)
+        - Code Generation (new languages, clients, or frameworks)
+        - Schema Adapters (new adapter or adapter improvements)
+        - Schema Processing (parsing, $ref resolution, examples)
+        - Transport (new transport types or improvements)
+        - Django Integration (settings, management commands, ASGI)
+        - Documentation
+        - Testing
+        - Other
+    validations:
+      required: true
+
+  - type: dropdown
+    id: willingness
+    attributes:
+      label: Contribution
+      description: Would you be willing to contribute this feature?
+      options:
+        - "Yes, I'd like to submit a PR"
+        - "I can help with testing/review"
+        - "No, just suggesting"
+    validations:
+      required: false
+
+  - type: textarea
+    id: additional
+    attributes:
+      label: Additional Context
+      description: Any other context, mockups, examples, or references.
+    validations:
+      required: false

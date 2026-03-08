@@ -1,0 +1,79 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "drf-mcp-docs"
+version = "0.1.0"
+description = "Expose DRF API documentation via MCP for AI coding agents"
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.10"
+authors = [
+    { name = "Abdul Khalek" },
+]
+keywords = ["django", "drf", "mcp", "ai", "api", "documentation"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Framework :: Django",
+    "Framework :: Django :: 4.2",
+    "Framework :: Django :: 5.0",
+    "Framework :: Django :: 5.1",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Software Development :: Libraries",
+]
+dependencies = [
+    "django>=4.2",
+    "djangorestframework>=3.14",
+    "mcp>=1.20",
+]
+
+[project.optional-dependencies]
+spectacular = ["drf-spectacular>=0.27"]
+yasg = ["drf-yasg>=1.21"]
+docs = [
+    "mkdocs-material>=9.5",
+    "mkdocs-minify-plugin",
+]
+dev = [
+    "pytest",
+    "pytest-django",
+    "pytest-asyncio",
+    "drf-spectacular",
+    "drf-yasg",
+    "ruff",
+    "pre-commit",
+]
+
+[project.urls]
+Homepage = "https://github.com/Abdulkhalek-1/drf-mcp-docs"
+Repository = "https://github.com/Abdulkhalek-1/drf-mcp-docs"
+Issues = "https://github.com/Abdulkhalek-1/drf-mcp-docs/issues"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/drf_mcp_docs"]
+
+[tool.pytest.ini_options]
+DJANGO_SETTINGS_MODULE = "tests.settings"
+pythonpath = ["src", "."]
+asyncio_mode = "auto"
+
+[tool.hatch.build.targets.sdist]
+include = ["src/drf_mcp_docs"]
+
+[tool.ruff]
+src = ["src"]
+target-version = "py310"
+line-length = 120
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["drf_mcp_docs"]

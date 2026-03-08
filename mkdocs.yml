@@ -1,0 +1,51 @@
+site_name: drf-mcp-docs
+site_url: https://Abdulkhalek-1.github.io/drf-mcp-docs/
+repo_url: https://github.com/Abdulkhalek-1/drf-mcp-docs
+repo_name: Abdulkhalek-1/drf-mcp-docs
+
+theme:
+  name: material
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: indigo
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: indigo
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  features:
+    - content.code.copy
+    - navigation.sections
+    - navigation.expand
+    - search.highlight
+
+plugins:
+  - search
+  - minify:
+      minify_html: true
+
+markdown_extensions:
+  - admonition
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.superfences
+  - pymdownx.tabbed:
+      alternate_style: true
+  - toc:
+      permalink: true
+
+nav:
+  - Home: index.md
+  - Getting Started: getting-started.md
+  - Configuration: configuration.md
+  - Resources & Tools: resources-and-tools.md
+  - Schema Adapters: schema-adapters.md
+  - Code Generation: code-generation.md
+  - ASGI Integration: asgi-integration.md
+  - Architecture: architecture.md
+  - Contributing: contributing.md

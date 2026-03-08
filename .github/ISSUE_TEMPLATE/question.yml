@@ -1,0 +1,33 @@
+name: Question
+description: Ask a question about drf-mcp-docs usage, configuration, or architecture
+title: "[Question]: "
+labels: ["question"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Have a question about drf-mcp-docs? Ask away. Please check the [documentation](docs/) first.
+
+  - type: textarea
+    id: question
+    attributes:
+      label: Question
+      description: What would you like to know?
+    validations:
+      required: true
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Context
+      description: What are you trying to accomplish? Include relevant code or configuration if helpful.
+    validations:
+      required: false
+
+  - type: textarea
+    id: tried
+    attributes:
+      label: What I've Tried
+      description: What have you already tried or looked at?
+    validations:
+      required: false

@@ -1,0 +1,179 @@
+from drf_mcp_docs.schema.types import APIOverview, Endpoint, SchemaDefinition
+
+
+class TestSchemaProcessorOverview:
+    def test_get_overview(self, processor):
+        overview = processor.get_overview()
+        assert isinstance(overview, APIOverview)
+        assert overview.title == "Test API"
+        assert overview.description == "A test API for drf-mcp-docs"
+        assert overview.version == "1.0.0"
+        assert overview.base_url == "https://api.example.com/v1"
+        assert overview.endpoint_count == 6  # GET/POST products, GET/PUT/DELETE product, GET categories
+
+    def test_overview_tags(self, processor):
+        overview = processor.get_overview()
+        tag_names = [t.name for t in overview.tags]
+        assert "products" in tag_names
+        assert "categories" in tag_names
+
+    def test_overview_auth_methods(self, processor):
+        overview = processor.get_overview()
+        assert len(overview.auth_methods) == 1
+        assert overview.auth_methods[0].name == "bearerAuth"
+        assert overview.auth_methods[0].type == "bearer"
+
+
+class TestSchemaProcessorEndpoints:
+    def test_get_all_endpoints(self, processor):
+        endpoints = processor.get_endpoints()
+        assert len(endpoints) == 6
+
+    def test_get_endpoints_by_tag(self, processor):
+        products = processor.get_endpoints(tag="products")
+        assert len(products) == 5
+        categories = processor.get_endpoints(tag="categories")
+        assert len(categories) == 1
+
+    def test_get_single_endpoint(self, processor):
+        endpoint = processor.get_endpoint("/api/products/", "get")
+        assert endpoint is not None
+        assert isinstance(endpoint, Endpoint)
+        assert endpoint.method == "GET"
+        assert endpoint.operation_id == "products_list"
+        assert endpoint.summary == "List all products"
+
+    def test_endpoint_not_found(self, processor):
+        endpoint = processor.get_endpoint("/nonexistent/", "get")
+        assert endpoint is None
+
+    def test_endpoint_parameters(self, processor):
+        endpoint = processor.get_endpoint("/api/products/", "get")
+        assert len(endpoint.parameters) == 2
+        page_param = next(p for p in endpoint.parameters if p.name == "page")
+        assert page_param.location == "query"
+        assert page_param.required is False
+
+    def test_endpoint_path_parameters(self, processor):
+        endpoint = processor.get_endpoint("/api/products/{id}/", "get")
+        id_param = next(p for p in endpoint.parameters if p.name == "id")
+        assert id_param.location == "path"
+        assert id_param.required is True
+
+    def test_endpoint_request_body(self, processor):
+        endpoint = processor.get_endpoint("/api/products/", "post")
+        assert endpoint.request_body is not None
+        assert endpoint.request_body.required is True
+        assert endpoint.request_body.content_type == "application/json"
+        assert "properties" in endpoint.request_body.schema
+
+    def test_endpoint_responses(self, processor):
+        endpoint = processor.get_endpoint("/api/products/", "post")
+        assert "201" in endpoint.responses
+        assert "400" in endpoint.responses
+        assert endpoint.responses["201"].description == "Created"
+
+    def test_endpoint_auth(self, processor):
+        endpoint = processor.get_endpoint("/api/products/", "get")
+        assert endpoint.auth_required is True
+        assert "bearerAuth" in endpoint.auth_methods
+
+    def test_endpoint_no_auth(self, processor):
+        endpoint = processor.get_endpoint("/api/categories/", "get")
+        assert endpoint.auth_required is False
+
+    def test_endpoint_deprecated(self, processor):
+        endpoint = processor.get_endpoint("/api/products/{id}/", "delete")
+        assert endpoint.deprecated is True
+
+
+class TestSchemaProcessorSchemas:
+    def test_get_all_schemas(self, processor):
+        schemas = processor.get_schemas()
+        assert len(schemas) == 3
+        names = [s.name for s in schemas]
+        assert "Product" in names
+        assert "ProductCreate" in names
+        assert "Category" in names
+
+    def test_get_schema_definition(self, processor):
+        schema = processor.get_schema_definition("Product")
+        assert isinstance(schema, SchemaDefinition)
+        assert schema.name == "Product"
+        assert schema.type == "object"
+        assert "name" in schema.properties
+        assert "price" in schema.properties
+        assert schema.required == ["name", "price", "category"]
+
+    def test_schema_not_found(self, processor):
+        schema = processor.get_schema_definition("NonExistent")
+        assert schema is None
+
+
+class TestSchemaProcessorSearch:
+    def test_search_by_keyword(self, processor):
+        results = processor.search_endpoints("product")
+        assert len(results) == 5
+
+    def test_search_by_method(self, processor):
+        results = processor.search_endpoints("product", method="POST")
+        assert len(results) == 1
+        assert results[0].method == "POST"
+
+    def test_search_by_tag(self, processor):
+        results = processor.search_endpoints("list", tag="categories")
+        assert len(results) == 1
+
+    def test_search_no_results(self, processor):
+        results = processor.search_endpoints("nonexistent_xyz")
+        assert len(results) == 0
+
+
+class TestSchemaProcessorExamples:
+    def test_generate_example_from_schema(self, processor):
+        schema = {
+            "type": "object",
+            "properties": {
+                "name": {"type": "string"},
+                "price": {"type": "number"},
+                "in_stock": {"type": "boolean"},
+            },
+        }
+        example = processor.generate_example_from_schema(schema)
+        assert isinstance(example, dict)
+        assert "name" in example
+        assert "price" in example
+        assert isinstance(example["in_stock"], bool)
+
+    def test_generate_example_with_ref(self, processor):
+        schema = {"$ref": "#/components/schemas/ProductCreate"}
+        example = processor.generate_example_from_schema(schema)
+        assert isinstance(example, dict)
+        assert "name" in example
+        assert "price" in example
+
+    def test_generate_example_with_enum(self, processor):
+        schema = {"type": "string", "enum": ["active", "inactive", "pending"]}
+        example = processor.generate_example_from_schema(schema)
+        assert example == "active"
+
+    def test_generate_example_string_formats(self, processor):
+        assert processor._string_example("email", "") == "user@example.com"
+        assert processor._string_example("x", "date") == "2024-01-15"
+        assert processor._string_example("x", "email") == "user@example.com"
+        assert processor._string_example("x", "uuid") == "550e8400-e29b-41d4-a716-446655440000"
+
+
+class TestSchemaProcessorRefResolution:
+    def test_resolve_ref(self, processor):
+        resolved = processor.resolve_ref("#/components/schemas/Product")
+        assert "properties" in resolved
+        assert "name" in resolved["properties"]
+
+    def test_resolve_invalid_ref(self, processor):
+        resolved = processor.resolve_ref("#/nonexistent/path")
+        assert resolved == {}
+
+    def test_resolve_non_hash_ref(self, processor):
+        resolved = processor.resolve_ref("external.json#/Foo")
+        assert resolved == {}
