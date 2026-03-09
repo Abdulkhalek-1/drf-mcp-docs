@@ -10,7 +10,7 @@ class TestSchemaProcessorOverview:
         assert overview.description == "A test API for drf-mcp-docs"
         assert overview.version == "1.0.0"
         assert overview.base_url == "https://api.example.com/v1"
-        assert overview.endpoint_count == 7  # GET/POST products, GET/PUT/DELETE product, GET categories, GET category
+        assert overview.endpoint_count == 10  # 7 original + 3 paginated product list endpoints
 
     def test_overview_tags(self, processor):
         overview = processor.get_overview()
@@ -39,11 +39,11 @@ class TestSchemaProcessorOverview:
 class TestSchemaProcessorEndpoints:
     def test_get_all_endpoints(self, processor):
         endpoints = processor.get_endpoints()
-        assert len(endpoints) == 7
+        assert len(endpoints) == 10
 
     def test_get_endpoints_by_tag(self, processor):
         products = processor.get_endpoints(tag="products")
-        assert len(products) == 5
+        assert len(products) == 8
         categories = processor.get_endpoints(tag="categories")
         assert len(categories) == 2
 
@@ -102,11 +102,12 @@ class TestSchemaProcessorEndpoints:
 class TestSchemaProcessorSchemas:
     def test_get_all_schemas(self, processor):
         schemas = processor.get_schemas()
-        assert len(schemas) == 3
+        assert len(schemas) == 6
         names = [s.name for s in schemas]
         assert "Product" in names
         assert "ProductCreate" in names
         assert "Category" in names
+        assert "PaginatedProductList" in names
 
     def test_get_schema_definition(self, processor):
         schema = processor.get_schema_definition("Product")
@@ -125,7 +126,7 @@ class TestSchemaProcessorSchemas:
 class TestSchemaProcessorSearch:
     def test_search_by_keyword(self, processor):
         results = processor.search_endpoints("product")
-        assert len(results) == 5
+        assert len(results) == 8
 
     def test_search_by_method(self, processor):
         results = processor.search_endpoints("product", method="POST")

@@ -7,6 +7,7 @@ from dataclasses import asdict
 
 from mcp.server.fastmcp import FastMCP
 
+from drf_mcp_docs.schema.types import PaginationInfo
 from drf_mcp_docs.server.instance import get_processor
 from drf_mcp_docs.settings import get_setting
 
@@ -141,8 +142,8 @@ def generate_code_snippet(
 
     Produces self-documenting code with real types, proper auth handling, and usage examples.
 
-    Supported languages: javascript, typescript, python
-    Supported clients: fetch, axios, ky (JS/TS) | requests, httpx (Python)
+    Supported languages: javascript, typescript, python, curl
+    Supported clients: fetch, axios, ky (JS/TS) | requests, httpx (Python) | curl
     """
     logger.debug("Tool generate_code_snippet: %s %s lang=%r client=%r", method, path, language, client)
     if err := _validate_inputs(path, method):
@@ -151,11 +152,17 @@ def generate_code_snippet(
     lang = (language or get_setting("DEFAULT_CODE_LANGUAGE")).lower()
     http_client = (client or get_setting("DEFAULT_HTTP_CLIENT")).lower()
 
+    # cURL shortcut
+    is_curl = lang in ("curl", "shell", "sh", "bash")
+    if is_curl:
+        lang = "curl"
+        http_client = "curl"
+
     # Auto-select appropriate client for language
     is_python = lang in ("python", "py")
     if is_python and http_client in ("fetch", "axios", "ky"):
         http_client = "requests"
-    elif not is_python and http_client in ("requests", "httpx"):
+    elif not is_curl and not is_python and http_client in ("requests", "httpx"):
         http_client = "fetch"
 
     processor = get_processor()
@@ -169,6 +176,7 @@ def generate_code_snippet(
         "ky": _generate_ky_snippet,
         "requests": _generate_requests_snippet,
         "httpx": _generate_httpx_snippet,
+        "curl": _generate_curl_snippet,
     }
     generator = generators.get(http_client, _generate_fetch_snippet)
     use_ts = lang in ("typescript", "ts")
@@ -203,6 +211,15 @@ def generate_code_snippet(
             success_response = {"success_status": r.status_code, "description": r.description}
             break
 
+    pagination = _detect_pagination(endpoint, processor)
+    pagination_meta = None
+    if pagination:
+        pagination_meta = {
+            "style": pagination.style,
+            "results_field": pagination.results_field,
+            "has_count": pagination.has_count,
+        }
+
     return json.dumps(
         {
             "language": lang,
@@ -226,6 +243,7 @@ def generate_code_snippet(
                     "body_required": endpoint.request_body.required if endpoint.request_body else False,
                 },
                 "response": success_response,
+                "pagination": pagination_meta,
             },
         },
         indent=2,
@@ -398,6 +416,278 @@ def _format_auth_header_py(auth_entries: list) -> list[str]:
         elif auth_type == "apiKey":
             lines.append(f'"{header_name}": api_key')
     return lines
+
+
+def _format_auth_header_curl(auth_entries: list) -> list[str]:
+    lines = []
+    for header_name, auth_type in auth_entries:
+        if auth_type == "bearer":
+            lines.append(f"-H '{header_name}: Bearer YOUR_TOKEN'")
+        elif auth_type == "basic":
+            lines.append(f"-H '{header_name}: Basic YOUR_CREDENTIALS'")
+        elif auth_type == "apiKey":
+            lines.append(f"-H '{header_name}: YOUR_API_KEY'")
+    return lines
+
+
+# ---------------------------------------------------------------------------
+# Pagination helpers
+# ---------------------------------------------------------------------------
+
+
+def _detect_pagination(endpoint, processor) -> PaginationInfo | None:
+    """Detect DRF pagination style from endpoint response schema and query params."""
+    if endpoint.method.upper() != "GET":
+        return None
+
+    response = _get_success_response(endpoint)
+    if not response or not response.schema:
+        return None
+
+    # Resolve the response schema (follow $ref)
+    schema = response.schema
+    if "$ref" in schema:
+        schema = processor.resolve_ref(schema["$ref"])
+
+    # Must be an object with 'results' (array) + 'next' + 'previous'
+    if schema.get("type") != "object":
+        return None
+    props = schema.get("properties", {})
+    results_prop = props.get("results", {})
+    if results_prop.get("type") != "array" and "$ref" not in results_prop:
+        return None
+    if "next" not in props or "previous" not in props:
+        return None
+
+    has_count = "count" in props
+    query_names = {p.name for p in endpoint.parameters if p.location == "query"}
+
+    if "cursor" in query_names:
+        return PaginationInfo(style="cursor", has_count=has_count)
+    if "limit" in query_names and "offset" in query_names:
+        return PaginationInfo(style="limit_offset", has_count=has_count)
+    return PaginationInfo(style="page_number", has_count=has_count)
+
+
+def _generate_pagination_helper_js(
+    endpoint,
+    processor,
+    pagination: PaginationInfo,
+    func_name: str,
+    *,
+    use_typescript: bool = False,
+) -> str:
+    """Generate a JS/TS async generator that iterates through all pages."""
+    all_name = f"fetchAll{func_name[0].upper()}{func_name[1:]}"
+    auth_entries, auth_params = _build_auth_info(endpoint, processor)
+
+    # Build the function param list (same as base function minus query params used for pagination)
+    params = []
+    for p in _get_path_params(endpoint):
+        safe = _sanitize_identifier(p.name)
+        params.append(f"{safe}: {_schema_to_ts_type(p.schema)}" if use_typescript else safe)
+    for pname, _ in auth_params:
+        params.append(f"{pname}: string" if use_typescript else pname)
+    params.append("delay?: number" if use_typescript else "delay")
+
+    ret_type = ""
+    if use_typescript:
+        resp = _get_success_response(endpoint)
+        item_type = "any"
+        if resp and resp.schema:
+            schema = resp.schema
+            if "$ref" in schema:
+                schema = processor.resolve_ref(schema["$ref"])
+            results_schema = schema.get("properties", {}).get("results", {})
+            items_schema = results_schema.get("items", {})
+            item_type = _schema_to_ts_type(items_schema)
+        ret_type = f": AsyncGenerator<{item_type}>"
+
+    lines = []
+    lines.append(f"async function* {all_name}({', '.join(params)}){ret_type} {{")
+
+    # Build base URL + auth headers
+    base_url = _get_base_url(processor)
+    path_expr = _build_path_with_params(endpoint)
+    url_expr = f"`{base_url}` + {path_expr}" if "{" in endpoint.path else f"'{base_url}{endpoint.path}'"
+
+    auth_header_lines = _format_auth_header_js(auth_entries)
+    if auth_header_lines:
+        lines.append("  const headers = {")
+        for h in auth_header_lines:
+            lines.append(f"    {h},")
+        lines.append("  };")
+    else:
+        lines.append("  const headers = {};")
+
+    lines.append(f"  let url{': string | null' if use_typescript else ''} = {url_expr};")
+
+    if pagination.style == "page_number":
+        lines.append("  let page = 1;")
+        lines.append("")
+        lines.append("  while (true) {")
+        lines.append("    const separator = url.includes('?') ? '&' : '?';")
+        lines.append("    const response = await fetch(`${url}${separator}page=${page}`, { headers });")
+        lines.append("    const data = await response.json();")
+        lines.append(f"    yield* data.{pagination.results_field};")
+        lines.append("    if (!data.next) break;")
+        lines.append("    page++;")
+    elif pagination.style == "limit_offset":
+        lines.append("  let offset = 0;")
+        lines.append("  const limit = 100;")
+        lines.append("")
+        lines.append("  while (true) {")
+        lines.append("    const separator = url.includes('?') ? '&' : '?';")
+        lines.append(
+            "    const response = await fetch(`${url}${separator}limit=${limit}&offset=${offset}`, { headers });"
+        )
+        lines.append("    const data = await response.json();")
+        lines.append(f"    yield* data.{pagination.results_field};")
+        lines.append("    if (!data.next) break;")
+        lines.append("    offset += limit;")
+    else:  # cursor
+        lines.append("")
+        lines.append("  while (url) {")
+        lines.append("    const response = await fetch(url, { headers });")
+        lines.append("    const data = await response.json();")
+        lines.append(f"    yield* data.{pagination.results_field};")
+        lines.append("    url = data.next;")
+
+    lines.append("    if (delay) await new Promise(r => setTimeout(r, delay));")
+    lines.append("  }")
+    lines.append("}")
+    return "\n".join(lines)
+
+
+def _generate_pagination_helper_py(
+    endpoint,
+    processor,
+    pagination: PaginationInfo,
+    func_name: str,
+    *,
+    is_async: bool = False,
+) -> str:
+    """Generate a Python generator that iterates through all pages."""
+    all_name = f"fetch_all_{func_name}"
+    auth_entries, auth_params = _build_auth_info(endpoint, processor)
+
+    # Build param list
+    params = []
+    for p in _get_path_params(endpoint):
+        params.append(_sanitize_identifier(p.name))
+    for pname, _ in auth_params:
+        params.append(pname)
+    params.append("delay: float = 0")
+
+    auth_header_py = _format_auth_header_py(auth_entries)
+
+    base_url = _get_base_url(processor)
+    path_expr = _build_path_with_params(endpoint, python=True)
+    url_expr = f'f"{base_url}" + {path_expr}' if "{" in endpoint.path else f'"{base_url}{endpoint.path}"'
+
+    indent = "        " if is_async else "    "
+    lines = []
+
+    if is_async:
+        lines.append(f"async def {all_name}({', '.join(params)}):")
+    else:
+        lines.append(f"def {all_name}({', '.join(params)}):")
+
+    lines.append(f'{indent.rstrip()}    """Iterate through all pages of results."""')
+
+    if auth_header_py:
+        lines.append(f"{indent}headers = {{{', '.join(auth_header_py)}}}")
+    else:
+        lines.append(f"{indent}headers = {{}}")
+
+    lines.append(f"{indent}url = {url_expr}")
+
+    if pagination.style == "page_number":
+        lines.append(f"{indent}page = 1")
+
+        if is_async:
+            lines.append(f"{indent}async with httpx.AsyncClient() as client:")
+            inner = indent + "    "
+            lines.append(f"{inner}while True:")
+            lines.append(f"{inner}    sep = '&' if '?' in url else '?'")
+            lines.append(f'{inner}    response = await client.get(f"{{url}}{{sep}}page={{page}}", headers=headers)')
+            lines.append(f"{inner}    data = response.json()")
+            lines.append(f"{inner}    for item in data['{pagination.results_field}']:")
+            lines.append(f"{inner}        yield item")
+            lines.append(f"{inner}    if not data.get('next'):")
+            lines.append(f"{inner}        break")
+            lines.append(f"{inner}    page += 1")
+            lines.append(f"{inner}    if delay:")
+            lines.append(f"{inner}        await asyncio.sleep(delay)")
+        else:
+            lines.append(f"{indent}while True:")
+            lines.append(f"{indent}    sep = '&' if '?' in url else '?'")
+            lines.append(f'{indent}    response = requests.get(f"{{url}}{{sep}}page={{page}}", headers=headers)')
+            lines.append(f"{indent}    response.raise_for_status()")
+            lines.append(f"{indent}    data = response.json()")
+            lines.append(f"{indent}    yield from data['{pagination.results_field}']")
+            lines.append(f"{indent}    if not data.get('next'):")
+            lines.append(f"{indent}        break")
+            lines.append(f"{indent}    page += 1")
+            lines.append(f"{indent}    if delay:")
+            lines.append(f"{indent}        time.sleep(delay)")
+
+    elif pagination.style == "limit_offset":
+        lines.append(f"{indent}offset = 0")
+        lines.append(f"{indent}limit = 100")
+
+        if is_async:
+            lines.append(f"{indent}async with httpx.AsyncClient() as client:")
+            inner = indent + "    "
+            lines.append(f"{inner}while True:")
+            lines.append(f"{inner}    sep = '&' if '?' in url else '?'")
+            lo_url = 'f"{url}{sep}limit={limit}&offset={offset}"'
+            lines.append(f"{inner}    response = await client.get({lo_url}, headers=headers)")
+            lines.append(f"{inner}    data = response.json()")
+            lines.append(f"{inner}    for item in data['{pagination.results_field}']:")
+            lines.append(f"{inner}        yield item")
+            lines.append(f"{inner}    if not data.get('next'):")
+            lines.append(f"{inner}        break")
+            lines.append(f"{inner}    offset += limit")
+            lines.append(f"{inner}    if delay:")
+            lines.append(f"{inner}        await asyncio.sleep(delay)")
+        else:
+            lines.append(f"{indent}while True:")
+            lines.append(f"{indent}    sep = '&' if '?' in url else '?'")
+            lo_url = 'f"{url}{sep}limit={limit}&offset={offset}"'
+            lines.append(f"{indent}    response = requests.get({lo_url}, headers=headers)")
+            lines.append(f"{indent}    response.raise_for_status()")
+            lines.append(f"{indent}    data = response.json()")
+            lines.append(f"{indent}    yield from data['{pagination.results_field}']")
+            lines.append(f"{indent}    if not data.get('next'):")
+            lines.append(f"{indent}        break")
+            lines.append(f"{indent}    offset += limit")
+            lines.append(f"{indent}    if delay:")
+            lines.append(f"{indent}        time.sleep(delay)")
+
+    else:  # cursor
+        if is_async:
+            lines.append(f"{indent}async with httpx.AsyncClient() as client:")
+            inner = indent + "    "
+            lines.append(f"{inner}while url:")
+            lines.append(f"{inner}    response = await client.get(url, headers=headers)")
+            lines.append(f"{inner}    data = response.json()")
+            lines.append(f"{inner}    for item in data['{pagination.results_field}']:")
+            lines.append(f"{inner}        yield item")
+            lines.append(f"{inner}    url = data.get('next')")
+            lines.append(f"{inner}    if url and delay:")
+            lines.append(f"{inner}        await asyncio.sleep(delay)")
+        else:
+            lines.append(f"{indent}while url:")
+            lines.append(f"{indent}    response = requests.get(url, headers=headers)")
+            lines.append(f"{indent}    response.raise_for_status()")
+            lines.append(f"{indent}    data = response.json()")
+            lines.append(f"{indent}    yield from data['{pagination.results_field}']")
+            lines.append(f"{indent}    url = data.get('next')")
+            lines.append(f"{indent}    if url and delay:")
+            lines.append(f"{indent}        time.sleep(delay)")
+
+    return "\n".join(lines)
 
 
 # ---------------------------------------------------------------------------
@@ -1019,6 +1309,14 @@ def _generate_fetch_snippet(endpoint, processor, use_typescript: bool = False) -
     # Usage example
     lines.append(_build_js_usage_example(endpoint, processor))
 
+    pagination = _detect_pagination(endpoint, processor)
+    if pagination:
+        func_name = _operation_to_func_name(endpoint)
+        lines.append("")
+        lines.append(
+            _generate_pagination_helper_js(endpoint, processor, pagination, func_name, use_typescript=use_typescript)
+        )
+
     return "\n".join(lines)
 
 
@@ -1106,6 +1404,14 @@ def _generate_axios_snippet(endpoint, processor, use_typescript: bool = False) -
 
     # Usage example
     lines.append(_build_js_usage_example(endpoint, processor))
+
+    pagination = _detect_pagination(endpoint, processor)
+    if pagination:
+        func_name = _operation_to_func_name(endpoint)
+        lines.append("")
+        lines.append(
+            _generate_pagination_helper_js(endpoint, processor, pagination, func_name, use_typescript=use_typescript)
+        )
 
     return "\n".join(lines)
 
@@ -1195,6 +1501,14 @@ def _generate_ky_snippet(endpoint, processor, use_typescript: bool = False) -> s
 
     # Usage example
     lines.append(_build_js_usage_example(endpoint, processor))
+
+    pagination = _detect_pagination(endpoint, processor)
+    if pagination:
+        func_name = _operation_to_func_name(endpoint)
+        lines.append("")
+        lines.append(
+            _generate_pagination_helper_js(endpoint, processor, pagination, func_name, use_typescript=use_typescript)
+        )
 
     return "\n".join(lines)
 
@@ -1306,6 +1620,12 @@ def _generate_requests_snippet(endpoint, processor, use_typescript: bool = False
     # Usage example
     lines.append(_build_python_usage_example(endpoint, processor, is_async=False))
 
+    pagination = _detect_pagination(endpoint, processor)
+    if pagination:
+        func_name = _operation_to_func_name(endpoint, snake_case=True)
+        lines.append("")
+        lines.append(_generate_pagination_helper_py(endpoint, processor, pagination, func_name, is_async=False))
+
     return "\n".join(lines)
 
 
@@ -1410,5 +1730,87 @@ def _generate_httpx_snippet(endpoint, processor, use_typescript: bool = False) -
 
     # Usage example
     lines.append(_build_python_usage_example(endpoint, processor, is_async=True))
+
+    pagination = _detect_pagination(endpoint, processor)
+    if pagination:
+        func_name = _operation_to_func_name(endpoint, snake_case=True)
+        lines.append("")
+        lines.append(_generate_pagination_helper_py(endpoint, processor, pagination, func_name, is_async=True))
+
+    return "\n".join(lines)
+
+
+# ---------------------------------------------------------------------------
+# cURL generator
+# ---------------------------------------------------------------------------
+
+
+def _generate_curl_snippet(endpoint, processor, use_typescript: bool = False) -> str:
+    base_url = _get_base_url(processor)
+    method = endpoint.method.upper()
+    has_body = endpoint.request_body is not None
+    query_params = _get_query_params(endpoint)
+    path_params = _get_path_params(endpoint)
+    auth_entries, _ = _build_auth_info(endpoint, processor)
+
+    # Build URL with path params substituted with example values
+    url = base_url + endpoint.path
+    for p in path_params:
+        example_val = processor.generate_example_value(p.name, p.schema)
+        url = url.replace(f"{{{p.name}}}", str(example_val))
+
+    # Append query params
+    if query_params:
+        qparts = []
+        for p in query_params:
+            val = processor.generate_example_value(p.name, p.schema)
+            qparts.append(f"{p.name}={val}")
+        url += "?" + "&".join(qparts)
+
+    lines = []
+
+    # Comment header
+    if endpoint.summary:
+        lines.append(f"# {endpoint.summary}")
+    lines.append(f"# {method} {endpoint.path}")
+
+    if endpoint.deprecated:
+        lines.append("# WARNING: This endpoint is deprecated")
+    lines.append("")
+
+    # Build curl command parts
+    parts = [f"curl -X {method}"]
+    parts.append(f"  '{url}'")
+
+    # Headers
+    if has_body:
+        parts.append("  -H 'Content-Type: application/json'")
+
+    auth_curl = _format_auth_header_curl(auth_entries)
+    for h in auth_curl:
+        parts.append(f"  {h}")
+
+    # Request body
+    if has_body and endpoint.request_body.schema:
+        body = processor.generate_example_from_schema(endpoint.request_body.schema)
+        body_json = json.dumps(body, indent=2, default=str)
+        parts.append(f"  -d '{body_json}'")
+
+    lines.append(" \\\n".join(parts))
+
+    # Pagination hint
+    pagination = _detect_pagination(endpoint, processor)
+    if pagination:
+        lines.append("")
+        if pagination.style == "page_number":
+            lines.append("# Pagination: page number style")
+            lines.append("# Add ?page=2 (or &page=2) for subsequent pages.")
+        elif pagination.style == "limit_offset":
+            lines.append("# Pagination: limit/offset style")
+            lines.append("# Adjust limit and offset params for subsequent pages.")
+        else:
+            lines.append("# Pagination: cursor style")
+            lines.append("# Use the 'next' URL from the response to fetch the next page.")
+        lines.append("# Response includes 'next' and 'previous' URLs for navigation.")
 
     return "\n".join(lines)

@@ -178,6 +178,96 @@ SAMPLE_OPENAPI_SCHEMA = {
                 },
             }
         },
+        "/api/products/paginated/": {
+            "get": {
+                "operationId": "products_paginated_list",
+                "summary": "List products (paginated)",
+                "tags": ["products"],
+                "parameters": [
+                    {
+                        "name": "page",
+                        "in": "query",
+                        "required": False,
+                        "schema": {"type": "integer"},
+                    },
+                    {
+                        "name": "page_size",
+                        "in": "query",
+                        "required": False,
+                        "schema": {"type": "integer"},
+                    },
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Paginated list",
+                        "content": {
+                            "application/json": {
+                                "schema": {"$ref": "#/components/schemas/PaginatedProductList"},
+                            }
+                        },
+                    }
+                },
+                "security": [{"bearerAuth": []}],
+            }
+        },
+        "/api/products/offset/": {
+            "get": {
+                "operationId": "products_offset_list",
+                "summary": "List products (offset pagination)",
+                "tags": ["products"],
+                "parameters": [
+                    {
+                        "name": "limit",
+                        "in": "query",
+                        "required": False,
+                        "schema": {"type": "integer"},
+                    },
+                    {
+                        "name": "offset",
+                        "in": "query",
+                        "required": False,
+                        "schema": {"type": "integer"},
+                    },
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Paginated list",
+                        "content": {
+                            "application/json": {
+                                "schema": {"$ref": "#/components/schemas/OffsetProductList"},
+                            }
+                        },
+                    }
+                },
+                "security": [{"bearerAuth": []}],
+            }
+        },
+        "/api/products/cursor/": {
+            "get": {
+                "operationId": "products_cursor_list",
+                "summary": "List products (cursor pagination)",
+                "tags": ["products"],
+                "parameters": [
+                    {
+                        "name": "cursor",
+                        "in": "query",
+                        "required": False,
+                        "schema": {"type": "string"},
+                    },
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Paginated list",
+                        "content": {
+                            "application/json": {
+                                "schema": {"$ref": "#/components/schemas/CursorProductList"},
+                            }
+                        },
+                    }
+                },
+                "security": [{"bearerAuth": []}],
+            }
+        },
         "/api/categories/{slug}/": {
             "get": {
                 "operationId": "categories_read",
@@ -232,6 +322,41 @@ SAMPLE_OPENAPI_SCHEMA = {
                     "in_stock": {"type": "boolean", "default": True},
                 },
                 "required": ["name", "price", "category"],
+            },
+            "PaginatedProductList": {
+                "type": "object",
+                "properties": {
+                    "count": {"type": "integer"},
+                    "next": {"type": "string", "format": "uri", "nullable": True},
+                    "previous": {"type": "string", "format": "uri", "nullable": True},
+                    "results": {
+                        "type": "array",
+                        "items": {"$ref": "#/components/schemas/Product"},
+                    },
+                },
+            },
+            "OffsetProductList": {
+                "type": "object",
+                "properties": {
+                    "count": {"type": "integer"},
+                    "next": {"type": "string", "format": "uri", "nullable": True},
+                    "previous": {"type": "string", "format": "uri", "nullable": True},
+                    "results": {
+                        "type": "array",
+                        "items": {"$ref": "#/components/schemas/Product"},
+                    },
+                },
+            },
+            "CursorProductList": {
+                "type": "object",
+                "properties": {
+                    "next": {"type": "string", "format": "uri", "nullable": True},
+                    "previous": {"type": "string", "format": "uri", "nullable": True},
+                    "results": {
+                        "type": "array",
+                        "items": {"$ref": "#/components/schemas/Product"},
+                    },
+                },
             },
             "Category": {
                 "type": "object",

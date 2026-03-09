@@ -19,7 +19,7 @@ class TestSearchEndpoints:
     def test_search_by_keyword(self):
         result = json.loads(tools.search_endpoints("product"))
         assert isinstance(result, list)
-        assert len(result) == 5
+        assert len(result) == 8
 
     def test_search_with_method_filter(self):
         result = json.loads(tools.search_endpoints("product", method="POST"))
@@ -317,7 +317,7 @@ class TestListSchemas:
     def test_list_schemas(self):
         result = json.loads(tools.list_schemas())
         assert isinstance(result, list)
-        assert len(result) == 3
+        assert len(result) == 6
         names = [s["name"] for s in result]
         assert "Product" in names
 
@@ -387,3 +387,166 @@ class TestCodeSanitization:
         result = json.loads(tools.generate_code_snippet("/api/products/", "get"))
         code = result["code"]
         assert "function " in code
+
+
+class TestPaginationDetection:
+    def test_detects_page_number_pagination(self):
+        result = json.loads(
+            tools.generate_code_snippet("/api/products/paginated/", "get", language="javascript", client="fetch")
+        )
+        meta = result["metadata"]["pagination"]
+        assert meta is not None
+        assert meta["style"] == "page_number"
+        assert meta["has_count"] is True
+        assert meta["results_field"] == "results"
+
+    def test_detects_limit_offset_pagination(self):
+        result = json.loads(
+            tools.generate_code_snippet("/api/products/offset/", "get", language="javascript", client="fetch")
+        )
+        meta = result["metadata"]["pagination"]
+        assert meta is not None
+        assert meta["style"] == "limit_offset"
+        assert meta["has_count"] is True
+
+    def test_detects_cursor_pagination(self):
+        result = json.loads(
+            tools.generate_code_snippet("/api/products/cursor/", "get", language="javascript", client="fetch")
+        )
+        meta = result["metadata"]["pagination"]
+        assert meta is not None
+        assert meta["style"] == "cursor"
+        assert meta["has_count"] is False
+
+    def test_no_pagination_for_non_paginated_endpoint(self):
+        result = json.loads(
+            tools.generate_code_snippet("/api/categories/", "get", language="javascript", client="fetch")
+        )
+        assert result["metadata"]["pagination"] is None
+
+    def test_no_pagination_for_post_endpoint(self):
+        result = json.loads(
+            tools.generate_code_snippet("/api/products/", "post", language="javascript", client="fetch")
+        )
+        assert result["metadata"]["pagination"] is None
+
+
+class TestPaginationCodeGeneration:
+    def test_fetch_pagination_helper(self):
+        result = json.loads(
+            tools.generate_code_snippet("/api/products/paginated/", "get", language="javascript", client="fetch")
+        )
+        code = result["code"]
+        assert "async function* fetchAll" in code
+        assert "yield*" in code
+
+    def test_axios_pagination_helper(self):
+        result = json.loads(
+            tools.generate_code_snippet("/api/products/paginated/", "get", language="javascript", client="axios")
+        )
+        code = result["code"]
+        assert "async function* fetchAll" in code
+
+    def test_requests_pagination_helper(self):
+        result = json.loads(
+            tools.generate_code_snippet("/api/products/paginated/", "get", language="python", client="requests")
+        )
+        code = result["code"]
+        assert "def fetch_all_" in code
+        assert "yield from" in code
+
+    def test_httpx_pagination_helper_async(self):
+        result = json.loads(
+            tools.generate_code_snippet("/api/products/paginated/", "get", language="python", client="httpx")
+        )
+        code = result["code"]
+        assert "async def fetch_all_" in code
+        assert "yield item" in code
+
+    def test_no_pagination_helper_for_non_paginated(self):
+        result = json.loads(
+            tools.generate_code_snippet("/api/categories/", "get", language="javascript", client="fetch")
+        )
+        code = result["code"]
+        assert "fetchAll" not in code
+
+    def test_cursor_pagination_follows_next_url(self):
+        result = json.loads(
+            tools.generate_code_snippet("/api/products/cursor/", "get", language="javascript", client="fetch")
+        )
+        code = result["code"]
+        assert "data.next" in code
+
+    def test_limit_offset_pagination(self):
+        result = json.loads(
+            tools.generate_code_snippet("/api/products/offset/", "get", language="python", client="requests")
+        )
+        code = result["code"]
+        assert "offset" in code
+        assert "limit" in code
+
+
+class TestCurlSnippet:
+    def test_curl_get_basic(self):
+        result = json.loads(tools.generate_code_snippet("/api/categories/", "get", language="curl"))
+        assert result["language"] == "curl"
+        assert result["client"] == "curl"
+        code = result["code"]
+        assert "curl -X GET" in code
+        assert "/api/categories/" in code
+
+    def test_curl_post_with_body(self):
+        result = json.loads(tools.generate_code_snippet("/api/products/", "post", language="curl"))
+        code = result["code"]
+        assert "-X POST" in code
+        assert "-d " in code
+        assert "Content-Type: application/json" in code
+
+    def test_curl_with_path_params(self):
+        result = json.loads(tools.generate_code_snippet("/api/products/{id}/", "get", language="curl"))
+        code = result["code"]
+        # Path params should be substituted in the curl URL (not in comment lines)
+        for line in code.splitlines():
+            if line.startswith("curl") or line.strip().startswith("'http"):
+                assert "{id}" not in line
+
+    def test_curl_with_bearer_auth(self):
+        result = json.loads(tools.generate_code_snippet("/api/products/", "get", language="curl"))
+        code = result["code"]
+        assert "Authorization: Bearer YOUR_TOKEN" in code
+
+    def test_curl_with_apikey_auth(self):
+        result = json.loads(tools.generate_code_snippet("/api/categories/{slug}/", "get", language="curl"))
+        code = result["code"]
+        assert "X-API-Key: YOUR_API_KEY" in code
+
+    def test_curl_delete(self):
+        result = json.loads(tools.generate_code_snippet("/api/products/{id}/", "delete", language="curl"))
+        code = result["code"]
+        assert "-X DELETE" in code
+
+    def test_curl_metadata(self):
+        result = json.loads(tools.generate_code_snippet("/api/products/", "get", language="curl"))
+        assert result["language"] == "curl"
+        assert result["client"] == "curl"
+        assert "metadata" in result
+
+    def test_curl_aliases(self):
+        for lang in ("shell", "sh", "bash"):
+            result = json.loads(tools.generate_code_snippet("/api/products/", "get", language=lang))
+            assert result["client"] == "curl"
+
+    def test_curl_no_auth_endpoint(self):
+        result = json.loads(tools.generate_code_snippet("/api/categories/", "get", language="curl"))
+        code = result["code"]
+        assert "Authorization" not in code
+
+    def test_curl_deprecated_endpoint(self):
+        result = json.loads(tools.generate_code_snippet("/api/products/{id}/", "delete", language="curl"))
+        code = result["code"]
+        assert "deprecated" in code.lower()
+
+    def test_curl_pagination_comment(self):
+        result = json.loads(tools.generate_code_snippet("/api/products/paginated/", "get", language="curl"))
+        code = result["code"]
+        assert "Pagination" in code

@@ -38,6 +38,13 @@ class Response:
 
 
 @dataclass(frozen=True)
+class PaginationInfo:
+    style: str  # "page_number" | "limit_offset" | "cursor"
+    results_field: str = "results"
+    has_count: bool = False
+
+
+@dataclass(frozen=True)
 class Endpoint:
     path: str
     method: str

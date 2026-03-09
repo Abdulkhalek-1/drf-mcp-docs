@@ -20,7 +20,7 @@ class TestResources:
 
         result = json.loads(api_overview())
         assert result["title"] == "Test API"
-        assert result["endpoint_count"] == 7
+        assert result["endpoint_count"] == 10
         assert result["version"] == "1.0.0"
 
     def test_api_endpoints_resource(self):
@@ -28,7 +28,7 @@ class TestResources:
 
         result = json.loads(api_endpoints())
         assert isinstance(result, list)
-        assert len(result) == 7
+        assert len(result) == 10
         for ep in result:
             assert "path" in ep
             assert "method" in ep
