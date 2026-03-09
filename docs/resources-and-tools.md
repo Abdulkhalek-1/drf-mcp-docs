@@ -266,12 +266,12 @@ Generate ready-to-use integration code for calling an API endpoint. Produces sel
 |---|---|---|---|---|
 | `path` | string | yes | — | Endpoint path |
 | `method` | string | yes | — | HTTP method |
-| `language` | string | no | from settings | `"javascript"`, `"typescript"`, or `"python"` |
-| `client` | string | no | from settings | JS/TS: `"fetch"`, `"axios"`, `"ky"` — Python: `"requests"`, `"httpx"` |
+| `language` | string | no | from settings | `"javascript"`, `"typescript"`, `"python"`, or `"curl"` |
+| `client` | string | no | from settings | JS/TS: `"fetch"`, `"axios"`, `"ky"` — Python: `"requests"`, `"httpx"` — cURL: not applicable |
 
 **Returns:** Object with `language`, `client`, `code`, and `metadata` fields.
 
-The `code` field contains the full snippet (imports, type definitions, JSDoc/docstring, function, usage example). The `metadata` field provides structured information about the endpoint, auth, parameters, and response.
+The `code` field contains the full snippet (imports, type definitions, JSDoc/docstring, function, usage example). For paginated GET endpoints, the code also includes an auto-fetch iterator helper that yields individual items across all pages. The `metadata` field provides structured information about the endpoint, auth, parameters, response, and pagination (when detected).
 
 ```json
 {
@@ -283,7 +283,8 @@ The `code` field contains the full snippet (imports, type definitions, JSDoc/doc
     "endpoint": {"path": "/api/products/", "method": "GET", "summary": "List all products", "deprecated": false},
     "auth": {"required": true, "methods": [{"type": "bearer", "description": "Bearer token (JWT)"}]},
     "parameters": {"path": [], "query": [{"name": "page", "type": "integer", "required": false}], "body_required": false},
-    "response": {"success_status": "200", "description": "Successful response"}
+    "response": {"success_status": "200", "description": "Successful response"},
+    "pagination": {"style": "page_number", "results_field": "results", "has_count": true}
   }
 }
 ```
@@ -298,10 +299,9 @@ List all data model schemas.
 
 **Returns:** Array of objects with:
 - `name` — Schema name
-- `type` — Schema type
-- `field_count` — Number of fields
-- `required_fields` — List of required field names
 - `description` — Schema description
+
+This is a lightweight listing for discovery. Use `get_schema_detail` for full properties, types, and constraints.
 
 ### `get_schema_detail`
 

@@ -25,11 +25,22 @@ This mounts the MCP server at `/mcp/` (default) and routes everything else to Dj
 
 ### 2. Run with ASGI server
 
-```bash
-uvicorn myproject.asgi:application --host 0.0.0.0 --port 8000
-```
+=== "uvicorn"
+
+    ```bash
+    uvicorn myproject.asgi:application --host 0.0.0.0 --port 8000
+    ```
+
+=== "daphne"
+
+    ```bash
+    daphne myproject.asgi:application --bind 0.0.0.0 --port 8000
+    ```
 
 The MCP endpoint will be available at `http://localhost:8000/mcp/`.
+
+!!! note
+    `mount_mcp()` manages the MCP session lifecycle directly, so it works with ASGI servers that don't send lifespan events (like Daphne) out of the box.
 
 ## Custom Mount Path
 
@@ -149,9 +160,9 @@ This starts a standalone HTTP server on port 8100, separate from your Django pro
 
 If you want the integrated ASGI approach:
 
-1. Install an ASGI server: `pip install uvicorn`
+1. Install an ASGI server: `pip install uvicorn` (or `pip install daphne`)
 2. Create/update `asgi.py` as shown above
-3. Run with `uvicorn` instead of `gunicorn`/`runserver`
+3. Run with `uvicorn` or `daphne` instead of `gunicorn`/`runserver`
 
 ## Connecting MCP Clients to HTTP
 

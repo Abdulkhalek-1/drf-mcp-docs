@@ -9,6 +9,7 @@ drf-mcp-docs exposes your Django REST Framework API documentation through the Mo
 ### Getting Started
 
 - **[Getting Started](getting-started.md)** — Installation, configuration, running, and connecting AI tools
+- **[Example Project](example-project.md)** — Minimal bookstore project to try drf-mcp-docs
 
 ### Reference
 

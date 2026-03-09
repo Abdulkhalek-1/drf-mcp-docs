@@ -50,7 +50,8 @@ src/drf_mcp_docs/
 │   └── tools.py             # MCP tool definitions + code generators
 └── management/
     └── commands/
-        └── runmcpserver.py  # Management command
+        ├── runmcpserver.py  # Management command
+        └── checkmcpconfig.py # Configuration diagnostics
 ```
 
 ## Data Flow
@@ -151,21 +152,31 @@ SchemaDefinition
 AuthMethod
 ├── name, type, description
 ├── header_name, scheme
+
+PaginationInfo
+├── style: str              (page_number, limit_offset, cursor)
+├── results_field: str      (default: "results")
+└── has_count: bool
 ```
 
 ## Code Generation Architecture
 
-The `generate_code_snippet` tool delegates to one of five generator functions based on language and client:
+The `generate_code_snippet` tool first detects pagination (for GET endpoints with a `{ results, next, previous }` response shape), then delegates to a generator function based on language and client:
 
 ```
 generate_code_snippet(path, method, language, client)
+    │
+    ├── _detect_pagination()  ──>  PaginationInfo | None
     │
     ├── client="fetch"     ──>  _generate_fetch_snippet()      (JS/TS)
     ├── client="axios"     ──>  _generate_axios_snippet()      (JS/TS)
     ├── client="ky"        ──>  _generate_ky_snippet()         (JS/TS)
     ├── client="requests"  ──>  _generate_requests_snippet()   (Python, sync)
-    └── client="httpx"     ──>  _generate_httpx_snippet()      (Python, async)
+    ├── client="httpx"     ──>  _generate_httpx_snippet()      (Python, async)
+    └── language="curl"    ──>  _generate_curl_snippet()       (shell)
 ```
+
+For paginated endpoints, each JS/TS and Python generator also appends an auto-fetch iterator helper via `_generate_pagination_helper_js()` or `_generate_pagination_helper_py()`. cURL includes pagination hints as comments.
 
 Each generator produces self-documenting code with:
 
@@ -218,3 +229,34 @@ Double-checked locking ensures resources and tools are registered exactly once, 
 1. **Custom adapters** — Subclass `BaseSchemaAdapter` for any OpenAPI source
 2. **Settings** — All behavior is configurable via the `DRF_MCP_DOCS` dict
 3. **Server customization** — Get the FastMCP instance via `get_mcp_server()` and add custom resources/tools before mounting
+
+## Debug Logging
+
+All 11 source modules use `logging.getLogger(__name__)` to emit structured debug logs under the `drf_mcp_docs` namespace. This covers adapter selection, schema processing, cache lifecycle, tool invocations, resource access, ASGI routing, and settings resolution.
+
+Enable via Django's standard `LOGGING` config:
+
+```python
+LOGGING = {
+    'version': 1,
+    'handlers': {
+        'console': {'class': 'logging.StreamHandler'},
+    },
+    'loggers': {
+        'drf_mcp_docs': {
+            'handlers': ['console'],
+            'level': 'DEBUG',
+        },
+    },
+}
+```
+
+Logged modules include:
+
+- `drf_mcp_docs.adapters` — Adapter auto-detection and loading
+- `drf_mcp_docs.schema.processor` — Schema parsing and `$ref` resolution
+- `drf_mcp_docs.server.instance` — Cache lifecycle (build, TTL, invalidation)
+- `drf_mcp_docs.server.resources` — Resource access
+- `drf_mcp_docs.server.tools` — Tool invocations and code generation
+- `drf_mcp_docs.urls` — ASGI routing decisions
+- `drf_mcp_docs.settings` — Settings resolution

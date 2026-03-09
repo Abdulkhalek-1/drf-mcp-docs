@@ -14,6 +14,9 @@ drf-mcp-docs generates ready-to-use integration code for API endpoints. The `gen
 | TypeScript | ky | Typed ky with interfaces |
 | Python | requests | requests library (sync) |
 | Python | httpx | httpx library (async) |
+| cURL | — | Shell command with headers, auth, and body |
+
+cURL also accepts `shell`, `sh`, or `bash` as language aliases.
 
 ### Auto-client selection
 
@@ -21,6 +24,7 @@ When the language and client don't match, the tool automatically selects an appr
 
 - `python` + `fetch`/`axios`/`ky` → uses `requests`
 - `javascript`/`typescript` + `requests`/`httpx` → uses `fetch`
+- `curl` does not use client selection — it always produces a cURL command
 
 ## What the Generator Produces
 
@@ -234,6 +238,110 @@ async def products_create(data: ProductsCreateRequest, token: str) -> ProductsCr
 # result = await products_create(data={...}, token="your-token-here")
 ```
 
+### cURL
+
+**Endpoint:** `GET /api/products/` with query params and bearer auth
+
+```bash
+# List all products
+# GET /api/products/
+
+curl -X GET \
+  'https://api.example.com/v1/api/products/?page=1' \
+  -H 'Authorization: Bearer YOUR_TOKEN'
+
+# Pagination: page number style
+# Add ?page=2 (or &page=2) for subsequent pages.
+# Response includes 'next' and 'previous' URLs for navigation.
+```
+
+**Endpoint:** `POST /api/products/` with request body and auth
+
+```bash
+# Create a product
+# POST /api/products/
+
+curl -X POST \
+  'https://api.example.com/v1/api/products/' \
+  -H 'Content-Type: application/json' \
+  -H 'Authorization: Bearer YOUR_TOKEN' \
+  -d '{
+    "name": "Example Name",
+    "price": 1.0,
+    "category": 1,
+    "in_stock": true
+  }'
+```
+
+cURL output uses placeholder values for auth (`YOUR_TOKEN`, `YOUR_CREDENTIALS`, `YOUR_API_KEY`) and includes pagination hints as comments for paginated endpoints.
+
+## Pagination Support
+
+For paginated GET endpoints (detected from the response schema), `generate_code_snippet` includes an auto-fetch iterator helper alongside the main function. The iterator yields individual items across all pages.
+
+### How pagination is detected
+
+drf-mcp-docs detects DRF pagination patterns by inspecting the response schema for the standard `{ results: [...], next: "url", previous: "url" }` shape. Three styles are recognized:
+
+| Style | Detection | Query parameter |
+|---|---|---|
+| Page number | Default for DRF pagination | `page` |
+| Limit/Offset | Both `limit` and `offset` query params | `limit`, `offset` |
+| Cursor | `cursor` query param present | `cursor` |
+
+### Example: fetch pagination helper (JavaScript)
+
+```javascript
+async function* fetchAllProducts(token, delay) {
+  const headers = { 'Authorization': `Bearer ${token}` };
+  let url = 'https://api.example.com/v1/api/products/';
+  let page = 1;
+
+  while (true) {
+    const separator = url.includes('?') ? '&' : '?';
+    const response = await fetch(`${url}${separator}page=${page}`, { headers });
+    const data = await response.json();
+    yield* data.results;
+    if (!data.next) break;
+    page++;
+    if (delay) await new Promise(r => setTimeout(r, delay));
+  }
+}
+
+// Usage:
+// for await (const product of fetchAllProducts("your-token-here", 100)) {
+//   console.log(product);
+// }
+```
+
+### Example: requests pagination helper (Python)
+
+```python
+def fetch_all_products(token, delay: float = 0):
+    """Iterate through all pages of results."""
+    headers = {"Authorization": f"Bearer {token}"}
+    url = "https://api.example.com/v1/api/products/"
+    page = 1
+
+    while True:
+        sep = '&' if '?' in url else '?'
+        response = requests.get(f"{url}{sep}page={page}", headers=headers)
+        response.raise_for_status()
+        data = response.json()
+        yield from data['results']
+        if not data.get('next'):
+            break
+        page += 1
+        if delay:
+            time.sleep(delay)
+
+# Usage:
+# for product in fetch_all_products(token="your-token-here", delay=0.1):
+#     print(product)
+```
+
+For cURL, pagination hints are included as comments rather than executable code.
+
 ## Function Naming
 
 Functions are named based on the `operationId` from the OpenAPI schema:
@@ -330,12 +438,17 @@ The tool returns a JSON object with the generated code and structured metadata:
     "response": {
       "success_status": "200",
       "description": "Successful response"
+    },
+    "pagination": {
+      "style": "page_number",
+      "results_field": "results",
+      "has_count": true
     }
   }
 }
 ```
 
-The `metadata` object gives AI agents structured information about the endpoint without needing to parse the generated code.
+The `metadata` object gives AI agents structured information about the endpoint without needing to parse the generated code. The `pagination` field is `null` for non-paginated endpoints.
 
 ## Configuring Defaults
 
@@ -343,7 +456,7 @@ Set defaults in your Django settings:
 
 ```python
 DRF_MCP_DOCS = {
-    'DEFAULT_CODE_LANGUAGE': 'typescript',  # 'javascript', 'typescript', or 'python'
+    'DEFAULT_CODE_LANGUAGE': 'typescript',  # 'javascript', 'typescript', 'python', or 'curl'
     'DEFAULT_HTTP_CLIENT': 'axios',         # 'fetch', 'axios', 'ky', 'requests', or 'httpx'
 }
 ```

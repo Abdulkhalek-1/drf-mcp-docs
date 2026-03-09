@@ -42,6 +42,7 @@ markdown_extensions:
 nav:
   - Home: index.md
   - Getting Started: getting-started.md
+  - Example Project: example-project.md
   - Configuration: configuration.md
   - Resources & Tools: resources-and-tools.md
   - Schema Adapters: schema-adapters.md

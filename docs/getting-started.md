@@ -86,6 +86,24 @@ python manage.py runmcpserver --transport streamable-http --host 0.0.0.0 --port 
 
 Use this when the AI tool connects over the network.
 
+### Development mode (auto-reload)
+
+```bash
+python manage.py runmcpserver --transport streamable-http --port 8100 --reload
+```
+
+The `--reload` flag uses Django's autoreload to restart the server when source files change. Only supported with streamable-http transport.
+
+### Validate configuration
+
+Before running, you can check that everything is set up correctly:
+
+```bash
+python manage.py checkmcpconfig
+```
+
+This validates settings, tests adapter detection, and verifies schema generation.
+
 ## Connecting AI Tools
 
 ### Claude Code
@@ -175,6 +193,7 @@ Try more:
 
 ## Next Steps
 
+- [Example Project](example-project.md) — Try a pre-configured bookstore project
 - [Configuration](configuration.md) — All settings and customization options
 - [Resources & Tools](resources-and-tools.md) — Full reference for MCP resources and tools
 - [Schema Adapters](schema-adapters.md) — How adapters work and writing custom ones

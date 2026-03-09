@@ -61,7 +61,7 @@ DRF_MCP_DOCS = {
 }
 ```
 
-When empty, drf-mcp-docs uses a default instruction that describes the server's capabilities.
+When empty, drf-mcp-docs uses detailed default instructions with structured workflow guidance that describes all available resources and tools, helping AI agents effectively navigate the API documentation.
 
 ### Schema Settings
 
@@ -181,6 +181,27 @@ def refresh_mcp_schema(sender, **kwargs):
     invalidate_schema_cache()
 ```
 
+#### Debug Logging
+
+All drf-mcp-docs modules emit structured debug logs under the `drf_mcp_docs` logger namespace. Enable via Django's standard `LOGGING` config:
+
+```python
+LOGGING = {
+    'version': 1,
+    'handlers': {
+        'console': {'class': 'logging.StreamHandler'},
+    },
+    'loggers': {
+        'drf_mcp_docs': {
+            'handlers': ['console'],
+            'level': 'DEBUG',
+        },
+    },
+}
+```
+
+This logs adapter selection, schema processing, cache lifecycle, tool invocations, resource access, ASGI routing, and settings resolution. See [Architecture — Debug Logging](architecture.md#debug-logging) for the full list of logged modules.
+
 ### Transport Settings
 
 #### `TRANSPORT`
@@ -225,7 +246,7 @@ DRF_MCP_DOCS = {
 - **Type:** `str`
 - **Default:** `'javascript'`
 
-Default language for the `generate_code_snippet` tool when no language is specified. Options: `'javascript'`, `'typescript'`, `'python'`.
+Default language for the `generate_code_snippet` tool when no language is specified. Options: `'javascript'`, `'typescript'`, `'python'`, `'curl'`.
 
 ```python
 DRF_MCP_DOCS = {
