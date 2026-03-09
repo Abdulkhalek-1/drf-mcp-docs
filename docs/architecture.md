@@ -95,22 +95,31 @@ The MCP server uses the official `mcp` Python SDK's `FastMCP` class. Resources a
 ```python
 # server/instance.py
 _processor: SchemaProcessor | None = None
+_processor_lock = threading.Lock()
 
 def get_processor() -> SchemaProcessor:
     global _processor
     cache = get_setting("CACHE_SCHEMA")
     if _processor is not None and cache:
         return _processor
-    adapter = get_adapter()
-    openapi_schema = adapter.get_schema()
-    _processor = SchemaProcessor(openapi_schema)
-    return _processor
+    with _processor_lock:
+        if _processor is not None and cache:
+            return _processor
+        adapter = get_adapter()
+        openapi_schema = adapter.get_schema()
+        _processor = SchemaProcessor(openapi_schema)
+        return _processor
 ```
 
 - **`DEBUG=True`** (dev): Schema is regenerated on every request
 - **`DEBUG=False`** (prod): Schema is generated once and cached in the global `_processor`
+- **Thread safety**: Double-checked locking ensures safe concurrent access under multi-worker deployments
+
+Additionally, `SchemaProcessor` caches resolved `$ref` pointers internally (`_ref_cache`) to avoid redundant resolution of the same references.
 
 ## Dataclass Hierarchy
+
+All dataclasses are **frozen** (`frozen=True`) to ensure immutability after construction. This prevents accidental mutation of schema data during processing.
 
 ```
 APIOverview
@@ -168,21 +177,24 @@ Helper functions:
 
 ## Singleton Pattern
 
-The MCP server uses a singleton to avoid creating multiple FastMCP instances:
+The MCP server uses a thread-safe singleton to avoid creating multiple FastMCP instances:
 
 ```python
 # server/__init__.py
 _server: FastMCP | None = None
+_server_lock = threading.Lock()
 
 def get_mcp_server() -> FastMCP:
     global _server
     if _server is None:
-        from drf_mcp_docs.server.instance import create_mcp_server
-        _server = create_mcp_server()
+        with _server_lock:
+            if _server is None:
+                from drf_mcp_docs.server.instance import create_mcp_server
+                _server = create_mcp_server()
     return _server
 ```
 
-This ensures resources and tools are registered exactly once, regardless of how many times `get_mcp_server()` is called.
+Double-checked locking ensures resources and tools are registered exactly once, even under concurrent access from multiple threads.
 
 ## Extension Points
 

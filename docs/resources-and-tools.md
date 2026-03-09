@@ -168,6 +168,8 @@ Returns details about all authentication methods.
 
 Tools are functions that the AI agent calls with specific parameters. They enable searching, filtering, and generating output.
 
+> **Input validation:** All tools that accept `path` and `method` parameters validate them before processing. The `path` must start with `/` and `method` must be a valid HTTP method (GET, POST, PUT, PATCH, DELETE, OPTIONS, HEAD). Invalid inputs return a JSON error response.
+
 ### `search_endpoints`
 
 Search API endpoints by keyword. Matches against path, summary, description, operationId, and tags.
@@ -212,11 +214,10 @@ Generate an example request for an endpoint, including URL parameters and reques
 
 **Parameters:**
 
-| Parameter | Type | Required | Default | Description |
-|---|---|---|---|---|
-| `path` | string | yes | — | Endpoint path |
-| `method` | string | yes | — | HTTP method |
-| `format` | string | no | `"json"` | Output format |
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `path` | string | yes | Endpoint path (must start with `/`) |
+| `method` | string | yes | HTTP method (GET, POST, PUT, PATCH, DELETE, OPTIONS, HEAD) |
 
 **Returns:** Object with:
 - `method` — HTTP method
