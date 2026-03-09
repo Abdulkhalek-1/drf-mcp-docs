@@ -82,6 +82,47 @@ Client Request
 └─────────────────┘
 ```
 
+## Custom ASGI Wrappers
+
+If you write your own ASGI `application` function that wraps `mount_mcp()` (e.g., to add WebSocket routing or other protocol handling), you **must** forward `lifespan` events to the `mount_mcp` app. The MCP server uses the ASGI lifespan protocol to initialize its internal task group — without it, all MCP requests will fail with:
+
+```
+RuntimeError: Task group is not initialized. Make sure to use run().
+```
+
+### Example: Combining MCP with WebSockets
+
+```python
+# myproject/asgi.py
+import os
+
+from django.core.asgi import get_asgi_application
+
+os.environ.setdefault("DJANGO_SETTINGS_MODULE", "myproject.settings")
+
+django_app = get_asgi_application()
+
+from drf_mcp_docs.urls import mount_mcp
+django_app = mount_mcp(django_app)
+
+from myproject.websocket import websocket_application
+
+
+async def application(scope, receive, send):
+    if scope["type"] == "http":
+        await django_app(scope, receive, send)
+    elif scope["type"] == "websocket":
+        await websocket_application(scope, receive, send)
+    elif scope["type"] == "lifespan":
+        # Required: forward lifespan events so the MCP server can initialize
+        await django_app(scope, receive, send)
+    else:
+        raise NotImplementedError(f"Unknown scope type {scope['type']}")
+```
+
+!!! warning
+    A common mistake is to only route `http` and `websocket` scopes while ignoring `lifespan`. If `lifespan` events are not forwarded to the `mount_mcp` wrapper, the MCP server's task group will never be started and every request to the MCP endpoint will return a 500 error.
+
 ## WSGI Projects
 
 If your project uses WSGI (the default for Django), you have two options:
