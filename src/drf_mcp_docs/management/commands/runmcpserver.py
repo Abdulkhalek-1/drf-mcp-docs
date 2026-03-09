@@ -35,8 +35,6 @@ class Command(BaseCommand):
         if transport == "stdio":
             server.run(transport="stdio")
         else:
-            server.run(
-                transport="streamable-http",
-                host=options["host"],
-                port=options["port"],
-            )
+            server.settings.host = options["host"]
+            server.settings.port = options["port"]
+            server.run(transport="streamable-http")

@@ -16,6 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`servers[0]["url"]` KeyError** — Safely handle server entries missing the `url` key
 - **Empty enum guard** — `generate_example_value()` returns `None` instead of crashing on empty enum lists
 - **Adapter error messages** — Override adapter loading now provides descriptive `ImportError` messages when module or class is not found
+- **Streamable-HTTP transport** — Fixed `TypeError` in `runmcpserver` command when using `--transport streamable-http`; `host` and `port` are now set via `server.settings` instead of being passed as `run()` kwargs
 
 ### Changed
 
