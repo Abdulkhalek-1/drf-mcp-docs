@@ -26,7 +26,7 @@
 
 - **MCP Resources** — Browse your API structure: overview, endpoints, schemas, auth methods
 - **MCP Tools** — Search endpoints, get detailed docs, generate request/response examples
-- **Code Generation** — Generate integration code with real types and docs (JS/TS: fetch, axios, ky — Python: requests, httpx)
+- **Code Generation** — Generate integration code with real types and docs (JS/TS: fetch, axios, ky — Python: requests, httpx — cURL)
 - **Multi-adapter** — Works with drf-spectacular, drf-yasg, or DRF's built-in schema generation
 - **Zero risk** — Read-only documentation exposure, no data mutation possible
 - **Two transports** — stdio for local AI tools, streamable-http for remote/network access
@@ -72,6 +72,12 @@ python manage.py runmcpserver --transport stdio
 
 ```bash
 python manage.py runmcpserver --transport streamable-http --host 0.0.0.0 --port 8100
+```
+
+**Check configuration** (validate settings, adapter, and schema):
+
+```bash
+python manage.py checkmcpconfig
 ```
 
 ### 4. Connect your AI tool
@@ -138,7 +144,7 @@ Agent: [calls get_endpoint_detail for POST /api/products/]
 | `get_endpoint_detail` | `path`, `method` | Full endpoint documentation |
 | `get_request_example` | `path`, `method` | Example request body and parameters |
 | `get_response_example` | `path`, `method`, `status_code?` | Example response |
-| `generate_code_snippet` | `path`, `method`, `language?`, `client?` | Frontend integration code |
+| `generate_code_snippet` | `path`, `method`, `language?`, `client?` | Integration code (JS/TS, Python, cURL) with pagination support |
 | `list_schemas` | — | All data model names and descriptions |
 | `get_schema_detail` | `name` | Full schema with all fields and types |
 
@@ -157,6 +163,7 @@ DRF_MCP_DOCS = {
     'SCHEMA_PATH_PREFIX': '/api/',               # Only include endpoints under this prefix
     'EXCLUDE_PATHS': ['/api/internal/'],          # Paths to exclude
     'CACHE_SCHEMA': not DEBUG,                   # Cache in production, refresh in dev
+    'CACHE_TTL': None,                           # Schema cache TTL in seconds (None = no expiry)
 
     # Transport
     'TRANSPORT': 'streamable-http',              # Default transport: 'streamable-http' or 'stdio'

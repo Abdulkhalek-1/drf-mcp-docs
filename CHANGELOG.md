@@ -9,9 +9,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- **`CACHE_TTL` setting** — Optional time-to-live (in seconds) for the schema cache; when set, the cached schema processor is automatically rebuilt after the TTL expires (default: `None` — no expiration, preserving existing behavior)
+- **Schema cache TTL (`CACHE_TTL` setting)** — Optional time-to-live (in seconds) for the schema cache; when set, the cached schema processor is automatically rebuilt after the TTL expires (default: `None` — no expiration, preserving existing behavior)
 - **`invalidate_schema_cache()` function** — Public, thread-safe API to force-clear the cached schema processor on demand (e.g., from a Django signal handler or management command); importable from `drf_mcp_docs` or `drf_mcp_docs.server`
+- **Pagination-aware code generation** — Detects DRF pagination patterns (page number, limit/offset, cursor) from OpenAPI response schemas and generates helper iterators that fetch all pages automatically for every supported client (fetch, axios, ky, requests, httpx)
+- **cURL code generation** — New `curl` output language for `generate_code_snippet` with proper method, auth headers, query params, and JSON body formatting; also accepts `shell`, `sh`, or `bash` as aliases
+- **`PaginationInfo` dataclass** — New frozen dataclass capturing pagination style, results field name, and count availability
+- **`checkmcpconfig` management command** — Validates settings (unknown keys with typo hints, transport, language, client compatibility, `CACHE_TTL`, path prefixes), tests adapter detection, and verifies schema generation before running the server
+- **`--reload` flag on `runmcpserver`** — Uses Django's built-in autoreload mechanism to restart the MCP server when source files change during development; only supported with streamable-http transport
+- **Structured debug logging** — Added `logging.getLogger(__name__)` to 11 modules covering adapter selection, schema processing, cache lifecycle, tool invocations, resource access, ASGI routing, and settings resolution; enable via Django's standard `LOGGING` config under the `drf_mcp_docs` namespace
+- **Daphne ASGI server compatibility** — Refactored `mount_mcp()` to directly manage the MCP session manager lifecycle instead of relying on Starlette's lifespan middleware, fixing the "Task group is not initialized" error on servers that do not send lifespan events
+- **Detailed default server instructions** — Replaced generic default instructions with structured workflow guidance describing all available resources and tools, helping AI agents effectively navigate the API documentation
+- **MCP client integration tests** — End-to-end tests that boot a real uvicorn server and connect an actual MCP client via streamable-http transport, catching protocol and transport-level issues that unit tests cannot detect
 - **Cache invalidation tests** — TTL expiration, manual invalidation, backward compatibility, top-level import, and concurrent invalidation stress test
+- **Config validation tests** — Comprehensive tests for `checkmcpconfig` covering unknown keys, typo detection, transport/language/client compatibility, and adapter verification
+- **Logging tests** — Tests verifying debug log output across all 11 instrumented modules
+
+### Fixed
+
+- **`list_schemas` token overflow** — Slimmed `list_schemas` output to return only schema name and description, preventing MCP token limit issues on large APIs; full schema details remain available via `get_schema_detail`
+
+### Documentation
+
+- **Troubleshooting guide** — Comprehensive guide covering adapter detection, schema generation, ASGI integration, connection/transport, configuration, caching, and debug logging, all in symptom-cause-solution format
+- **Example bookstore project** — Minimal Author/Book project with drf-spectacular and drf-mcp-docs pre-configured, including ASGI mount, both transport modes, and AI tool configuration snippets
+- **Lifespan forwarding guide** — Instructions for custom ASGI wrappers that need to forward lifespan events to `mount_mcp()`
 
 ## [0.1.1] - 2026-03-09
 
