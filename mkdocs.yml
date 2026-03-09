@@ -48,4 +48,5 @@ nav:
   - Code Generation: code-generation.md
   - ASGI Integration: asgi-integration.md
   - Architecture: architecture.md
+  - Changelog: changelog.md
   - Contributing: contributing.md
