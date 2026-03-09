@@ -33,6 +33,7 @@ dependencies = [
     "djangorestframework>=3.14",
     "inflection>=0.5.1",
     "mcp>=1.20",
+    "uritemplate>=3.0",
 ]
 
 [project.optional-dependencies]
