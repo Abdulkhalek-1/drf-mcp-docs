@@ -10,9 +10,11 @@ class SpectacularAdapter(BaseSchemaAdapter):
     def is_available(cls) -> bool:
         try:
             import drf_spectacular  # noqa: F401
+            from django.conf import settings
 
-            return True
-        except ImportError:
+            schema_class = getattr(settings, "REST_FRAMEWORK", {}).get("DEFAULT_SCHEMA_CLASS", "")
+            return "drf_spectacular" in schema_class
+        except (ImportError, Exception):
             return False
 
     def get_schema(self) -> dict:

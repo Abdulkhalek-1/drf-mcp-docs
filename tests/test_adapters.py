@@ -10,31 +10,31 @@ from drf_mcp_docs.adapters.yasg import YasgAdapter
 
 
 class TestSpectacularAdapter:
-    def test_is_available_when_installed(self):
+    def test_is_available_when_installed_and_configured(self, settings):
+        settings.REST_FRAMEWORK = {
+            "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
+        }
         with patch.dict("sys.modules", {"drf_spectacular": MagicMock()}):
             assert SpectacularAdapter.is_available() is True
 
-    def test_is_available_when_not_installed(self):
-        import sys
+    def test_is_not_available_when_installed_but_not_configured(self, settings):
+        settings.REST_FRAMEWORK = {
+            "DEFAULT_SCHEMA_CLASS": "rest_framework.schemas.openapi.AutoSchema",
+        }
+        with patch.dict("sys.modules", {"drf_spectacular": MagicMock()}):
+            assert SpectacularAdapter.is_available() is False
 
-        # Temporarily remove drf_spectacular if present
-        saved = sys.modules.pop("drf_spectacular", None)
-        try:
-            with patch.dict("sys.modules", {"drf_spectacular": None}):
-                # importlib will raise ImportError for None modules
-                pass
-            # Direct test without mock
-            result = SpectacularAdapter.is_available()
-            # Result depends on whether drf_spectacular is actually installed
-            assert isinstance(result, bool)
-        finally:
-            if saved is not None:
-                sys.modules["drf_spectacular"] = saved
+    def test_is_not_available_when_not_installed(self, settings):
+        settings.REST_FRAMEWORK = {
+            "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
+        }
+        with patch.dict("sys.modules", {"drf_spectacular": None}):
+            assert SpectacularAdapter.is_available() is False
 
     @pytest.mark.django_db
     @pytest.mark.skipif(
         not SpectacularAdapter.is_available(),
-        reason="drf-spectacular not installed",
+        reason="drf-spectacular not installed or not configured",
     )
     def test_get_schema(self, settings):
         settings.REST_FRAMEWORK = {
