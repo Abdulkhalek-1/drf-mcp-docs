@@ -17,17 +17,21 @@ class YasgAdapter(BaseSchemaAdapter):
 
             return True
         except ImportError:
+            logger.debug("drf-yasg not installed")
             return False
 
     def get_schema(self) -> dict:
         from drf_yasg import openapi
         from drf_yasg.generators import OpenAPISchemaGenerator
 
+        logger.debug("Generating schema via drf-yasg (Swagger 2.0 -> OpenAPI 3.0)")
         info = openapi.Info(title="API", default_version="v1")
         generator = OpenAPISchemaGenerator(info=info)
         swagger = generator.get_schema(public=True)
         swagger_dict = swagger.as_odict()
-        return self._convert_swagger_to_openapi3(swagger_dict)
+        result = self._convert_swagger_to_openapi3(swagger_dict)
+        logger.debug("Schema converted: %d paths", len(result.get("paths", {})))
+        return result
 
     def _convert_swagger_to_openapi3(self, swagger: dict) -> dict:
         """Convert Swagger 2.0 dict to OpenAPI 3.0 structure."""

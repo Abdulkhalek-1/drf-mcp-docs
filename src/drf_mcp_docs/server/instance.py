@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import threading
 import time
 
@@ -8,6 +9,8 @@ from mcp.server.fastmcp import FastMCP
 from drf_mcp_docs.adapters import get_adapter
 from drf_mcp_docs.schema.processor import SchemaProcessor
 from drf_mcp_docs.settings import get_setting
+
+logger = logging.getLogger(__name__)
 
 _processor: SchemaProcessor | None = None
 _processor_cached_at: float | None = None
@@ -38,6 +41,7 @@ def _filter_paths(schema: dict) -> dict:
         if any(path.startswith(ep) for ep in exclude):
             continue
         filtered[path] = data
+    logger.debug("Path filtering: %d -> %d paths", len(paths), len(filtered))
     return {**schema, "paths": filtered}
 
 
@@ -46,14 +50,44 @@ def get_processor() -> SchemaProcessor:
     global _processor, _processor_cached_at
     cache = get_setting("CACHE_SCHEMA")
     if _processor is not None and cache and not _is_cache_expired():
+        logger.debug(
+            "Schema processor cache hit (age: %.1fs)",
+            time.monotonic() - _processor_cached_at,
+        )
         return _processor
     with _processor_lock:
         if _processor is not None and cache and not _is_cache_expired():
+            logger.debug(
+                "Schema processor cache hit (age: %.1fs)",
+                time.monotonic() - _processor_cached_at,
+            )
             return _processor
+
+        if _processor is not None and _is_cache_expired():
+            logger.debug(
+                "Schema processor cache expired (age: %.1fs, TTL: %s)",
+                time.monotonic() - _processor_cached_at,
+                get_setting("CACHE_TTL"),
+            )
+        elif _processor is None:
+            logger.debug("Schema processor cache miss, building")
+        else:
+            logger.debug("Schema caching disabled, rebuilding")
+
+        t0 = time.monotonic()
         adapter = get_adapter()
         openapi_schema = _filter_paths(adapter.get_schema())
         _processor = SchemaProcessor(openapi_schema)
         _processor_cached_at = time.monotonic()
+        elapsed = _processor_cached_at - t0
+        path_count = len(openapi_schema.get("paths", {}))
+        schema_count = len(openapi_schema.get("components", {}).get("schemas", {}))
+        logger.info(
+            "Schema processor built in %.3fs (%d paths, %d schemas)",
+            elapsed,
+            path_count,
+            schema_count,
+        )
         return _processor
 
 
@@ -68,12 +102,15 @@ def invalidate_schema_cache() -> None:
     with _processor_lock:
         _processor = None
         _processor_cached_at = None
+    logger.info("Schema cache invalidated")
 
 
 def create_mcp_server() -> FastMCP:
     """Create and configure the MCP server with resources and tools."""
     name = get_setting("SERVER_NAME")
     instructions = get_setting("SERVER_INSTRUCTIONS")
+
+    logger.info("Creating MCP server '%s'", name)
 
     mcp = FastMCP(
         name=name,

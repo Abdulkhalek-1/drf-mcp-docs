@@ -1,11 +1,14 @@
 from __future__ import annotations
 
 import json
+import logging
 from dataclasses import asdict
 
 from mcp.server.fastmcp import FastMCP
 
 from drf_mcp_docs.server.instance import get_processor
+
+logger = logging.getLogger(__name__)
 
 
 def _serialize(obj) -> str:
@@ -22,6 +25,7 @@ def _serialize_list(items) -> str:
 
 def api_overview() -> str:
     """API overview: title, description, version, base URL, auth methods, tags, endpoint count."""
+    logger.debug("Resource api://overview accessed")
     processor = get_processor()
     overview = processor.get_overview()
     return _serialize(overview)
@@ -29,6 +33,7 @@ def api_overview() -> str:
 
 def api_endpoints() -> str:
     """List all API endpoints with path, method, summary, and tags."""
+    logger.debug("Resource api://endpoints accessed")
     processor = get_processor()
     endpoints = processor.get_endpoints()
     compact = [
@@ -47,6 +52,7 @@ def api_endpoints() -> str:
 
 def api_endpoint_detail(method: str, path: str) -> str:
     """Full detail for one endpoint: params, body, responses, auth, examples."""
+    logger.debug("Resource api://endpoints/%s/%s accessed", method, path)
     processor = get_processor()
     if not path.startswith("/"):
         path = "/" + path
@@ -58,6 +64,7 @@ def api_endpoint_detail(method: str, path: str) -> str:
 
 def api_schemas() -> str:
     """All schema/model definitions with names and field summaries."""
+    logger.debug("Resource api://schemas accessed")
     processor = get_processor()
     schemas = processor.get_schemas()
     compact = [
@@ -74,6 +81,7 @@ def api_schemas() -> str:
 
 def api_schema_detail(name: str) -> str:
     """Full schema definition with properties, types, and constraints."""
+    logger.debug("Resource api://schemas/%s accessed", name)
     processor = get_processor()
     schema = processor.get_schema_definition(name)
     if schema is None:
@@ -83,6 +91,7 @@ def api_schema_detail(name: str) -> str:
 
 def api_auth() -> str:
     """Authentication guide: all auth methods with details."""
+    logger.debug("Resource api://auth accessed")
     processor = get_processor()
     auth_methods = processor.get_auth_methods()
     return _serialize_list(auth_methods)

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import logging
+
 from drf_mcp_docs.schema.types import (
     APIOverview,
     AuthMethod,
@@ -11,6 +13,8 @@ from drf_mcp_docs.schema.types import (
     Tag,
 )
 
+logger = logging.getLogger(__name__)
+
 
 class SchemaProcessor:
     """Transforms an OpenAPI 3.x dict into structured, AI-friendly data."""
@@ -18,10 +22,18 @@ class SchemaProcessor:
     def __init__(self, openapi_schema: dict):
         self.schema = openapi_schema
         self._ref_cache: dict[str, dict] = {}
+        logger.debug(
+            "SchemaProcessor initialized: %d paths, %d schemas",
+            len(self.schema.get("paths", {})),
+            len(self.schema.get("components", {}).get("schemas", {})),
+        )
 
     def resolve_ref(self, ref: str, _depth: int = 10) -> dict:
         """Resolve a $ref pointer like '#/components/schemas/Pet'."""
-        if _depth <= 0 or not ref.startswith("#/"):
+        if _depth <= 0:
+            logger.warning("$ref resolution depth limit reached: %s", ref)
+            return {}
+        if not ref.startswith("#/"):
             return {}
         if ref in self._ref_cache:
             return self._ref_cache[ref].copy()
@@ -224,6 +236,7 @@ class SchemaProcessor:
         schemas = self.schema.get("components", {}).get("schemas", {})
         schema_data = schemas.get(name)
         if schema_data is None:
+            logger.debug("Schema '%s' not found", name)
             return None
         return self._parse_schema_definition(name, schema_data)
 
@@ -273,6 +286,7 @@ class SchemaProcessor:
             ).lower()
             if query_lower in searchable:
                 results.append(endpoint)
+        logger.debug("search_endpoints: %d match(es)", len(results))
         return results
 
     def generate_example_from_schema(self, schema: dict, _depth: int = 10) -> dict | list | str | None:

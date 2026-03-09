@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import re
 from dataclasses import asdict
 
@@ -9,14 +10,18 @@ from mcp.server.fastmcp import FastMCP
 from drf_mcp_docs.server.instance import get_processor
 from drf_mcp_docs.settings import get_setting
 
+logger = logging.getLogger(__name__)
+
 _VALID_HTTP_METHODS = {"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS", "HEAD"}
 
 
 def _validate_inputs(path: str, method: str) -> str | None:
     """Return an error JSON string if inputs are invalid, else None."""
     if not path.startswith("/"):
+        logger.debug("Input validation failed: invalid path '%s'", path)
         return json.dumps({"error": f"Invalid path '{path}': must start with '/'"})
     if method.upper() not in _VALID_HTTP_METHODS:
+        logger.debug("Input validation failed: invalid method '%s'", method)
         return json.dumps({"error": f"Invalid HTTP method '{method}'"})
     return None
 
@@ -27,6 +32,7 @@ def search_endpoints(
     tag: str | None = None,
 ) -> str:
     """Search API endpoints by keyword. Matches path, summary, description, and operationId."""
+    logger.debug("Tool search_endpoints: query=%r method=%r tag=%r", query, method, tag)
     if method and method.upper() not in _VALID_HTTP_METHODS:
         return json.dumps({"error": f"Invalid HTTP method '{method}'"})
     processor = get_processor()
@@ -40,6 +46,7 @@ def search_endpoints(
         }
         for ep in results
     ]
+    logger.debug("search_endpoints: %d result(s)", len(compact))
     if not compact:
         return json.dumps({"message": f"No endpoints found matching '{query}'"})
     return json.dumps(compact, indent=2)
@@ -47,12 +54,15 @@ def search_endpoints(
 
 def get_endpoint_detail(path: str, method: str) -> str:
     """Get full documentation for a specific endpoint including parameters, request body, responses, and auth."""
+    logger.debug("Tool get_endpoint_detail: %s %s", method, path)
     if err := _validate_inputs(path, method):
         return err
     processor = get_processor()
     endpoint = processor.get_endpoint(path, method)
     if endpoint is None:
+        logger.debug("get_endpoint_detail: not found")
         return json.dumps({"error": f"Endpoint {method.upper()} {path} not found"})
+    logger.debug("get_endpoint_detail: found")
     return json.dumps(asdict(endpoint), indent=2, default=str)
 
 
@@ -61,6 +71,7 @@ def get_request_example(
     method: str,
 ) -> str:
     """Generate an example request for an endpoint (body and/or parameters)."""
+    logger.debug("Tool get_request_example: %s %s", method, path)
     if err := _validate_inputs(path, method):
         return err
     processor = get_processor()
@@ -90,6 +101,7 @@ def get_response_example(
     status_code: str = "200",
 ) -> str:
     """Generate an example response for an endpoint."""
+    logger.debug("Tool get_response_example: %s %s status=%s", method, path, status_code)
     if err := _validate_inputs(path, method):
         return err
     processor = get_processor()
@@ -132,6 +144,7 @@ def generate_code_snippet(
     Supported languages: javascript, typescript, python
     Supported clients: fetch, axios, ky (JS/TS) | requests, httpx (Python)
     """
+    logger.debug("Tool generate_code_snippet: %s %s lang=%r client=%r", method, path, language, client)
     if err := _validate_inputs(path, method):
         return err
 
@@ -221,18 +234,23 @@ def generate_code_snippet(
 
 def list_schemas() -> str:
     """List all available schema names and descriptions. Use get_schema_detail for full properties."""
+    logger.debug("Tool list_schemas")
     processor = get_processor()
     schemas = processor.get_schemas()
+    logger.debug("list_schemas: %d schema(s)", len(schemas))
     result = [{"name": s.name, "description": s.description} for s in schemas]
     return json.dumps(result, indent=2)
 
 
 def get_schema_detail(name: str) -> str:
     """Get full details of a data model schema including all properties, types, and constraints."""
+    logger.debug("Tool get_schema_detail: %r", name)
     processor = get_processor()
     schema = processor.get_schema_definition(name)
     if schema is None:
+        logger.debug("get_schema_detail: not found")
         return json.dumps({"error": f"Schema '{name}' not found"})
+    logger.debug("get_schema_detail: found")
     return json.dumps(asdict(schema), indent=2, default=str)
 
 

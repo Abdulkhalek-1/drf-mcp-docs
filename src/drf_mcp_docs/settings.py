@@ -1,4 +1,8 @@
+import logging
+
 from django.conf import settings
+
+logger = logging.getLogger(__name__)
 
 DEFAULTS = {
     # Server
@@ -32,4 +36,5 @@ def get_all_settings() -> dict:
     result = {}
     for key in DEFAULTS:
         result[key] = get_setting(key)
+    logger.debug("Resolved settings: %s", result)
     return result

@@ -15,12 +15,15 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import logging
 from typing import TYPE_CHECKING
 
 from drf_mcp_docs.settings import get_setting
 
 if TYPE_CHECKING:
     pass
+
+logger = logging.getLogger(__name__)
 
 # Empty URL patterns - MCP uses its own ASGI app
 urlpatterns = []
@@ -46,6 +49,8 @@ def mount_mcp(django_app, mcp=None, path: str | None = None):
     mcp_path = path or get_setting("MCP_ENDPOINT")
     if not mcp_path.startswith("/"):
         mcp_path = "/" + mcp_path
+
+    logger.info("Mounting MCP server at '%s'", mcp_path)
 
     # Align the MCP SDK's internal route with the mount path
     mcp.settings.streamable_http_path = mcp_path.rstrip("/") or "/"
@@ -73,8 +78,10 @@ def mount_mcp(django_app, mcp=None, path: str | None = None):
 
             async def mcp_send(message):
                 if message["type"] == "lifespan.startup.complete":
+                    logger.debug("MCP lifespan startup complete")
                     startup_complete.set()
                 elif message["type"] == "lifespan.startup.failed":
+                    logger.warning("MCP lifespan startup failed")
                     mcp_failed.set()
                     startup_complete.set()
 
@@ -111,11 +118,13 @@ def mount_mcp(django_app, mcp=None, path: str | None = None):
             with contextlib.suppress(asyncio.CancelledError):
                 await mcp_task
 
+        logger.debug("MCP lifespan shutdown complete")
         await send({"type": "lifespan.shutdown.complete"})
 
     async def asgi_app(scope, receive, send):
         scope_type = scope["type"]
         if scope_type == "http" and scope["path"].startswith(mcp_path.rstrip("/")):
+            logger.debug("Routing request to MCP: %s", scope["path"])
             await mcp_app(scope, receive, send)
         elif scope_type == "lifespan":
             await _handle_lifespan(scope, receive, send)
