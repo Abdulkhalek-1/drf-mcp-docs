@@ -1,3 +1,4 @@
+from drf_mcp_docs.schema.processor import SchemaProcessor
 from drf_mcp_docs.schema.types import APIOverview, Endpoint, SchemaDefinition
 
 
@@ -9,7 +10,7 @@ class TestSchemaProcessorOverview:
         assert overview.description == "A test API for drf-mcp-docs"
         assert overview.version == "1.0.0"
         assert overview.base_url == "https://api.example.com/v1"
-        assert overview.endpoint_count == 6  # GET/POST products, GET/PUT/DELETE product, GET categories
+        assert overview.endpoint_count == 7  # GET/POST products, GET/PUT/DELETE product, GET categories, GET category
 
     def test_overview_tags(self, processor):
         overview = processor.get_overview()
@@ -19,21 +20,32 @@ class TestSchemaProcessorOverview:
 
     def test_overview_auth_methods(self, processor):
         overview = processor.get_overview()
-        assert len(overview.auth_methods) == 1
-        assert overview.auth_methods[0].name == "bearerAuth"
-        assert overview.auth_methods[0].type == "bearer"
+        assert len(overview.auth_methods) == 2
+        auth_names = {a.name for a in overview.auth_methods}
+        assert "bearerAuth" in auth_names
+        assert "apiKeyAuth" in auth_names
+
+    def test_overview_server_without_url_key(self):
+        schema = {
+            "info": {"title": "Test", "version": "1.0"},
+            "servers": [{"description": "no url"}],
+            "paths": {},
+        }
+        proc = SchemaProcessor(schema)
+        overview = proc.get_overview()
+        assert overview.base_url == ""
 
 
 class TestSchemaProcessorEndpoints:
     def test_get_all_endpoints(self, processor):
         endpoints = processor.get_endpoints()
-        assert len(endpoints) == 6
+        assert len(endpoints) == 7
 
     def test_get_endpoints_by_tag(self, processor):
         products = processor.get_endpoints(tag="products")
         assert len(products) == 5
         categories = processor.get_endpoints(tag="categories")
-        assert len(categories) == 1
+        assert len(categories) == 2
 
     def test_get_single_endpoint(self, processor):
         endpoint = processor.get_endpoint("/api/products/", "get")
@@ -157,6 +169,11 @@ class TestSchemaProcessorExamples:
         example = processor.generate_example_from_schema(schema)
         assert example == "active"
 
+    def test_generate_example_with_empty_enum(self, processor):
+        schema = {"type": "string", "enum": []}
+        result = processor.generate_example_value("status", schema)
+        assert result is None
+
     def test_generate_example_string_formats(self, processor):
         assert processor._string_example("email", "") == "user@example.com"
         assert processor._string_example("x", "date") == "2024-01-15"
@@ -165,6 +182,13 @@ class TestSchemaProcessorExamples:
 
 
 class TestSchemaProcessorRefResolution:
+    def test_resolve_ref_caching(self, processor):
+        """resolve_ref caches results for repeated calls."""
+        result1 = processor.resolve_ref("#/components/schemas/Product")
+        result2 = processor.resolve_ref("#/components/schemas/Product")
+        assert result1 == result2
+        assert "#/components/schemas/Product" in processor._ref_cache
+
     def test_resolve_ref(self, processor):
         resolved = processor.resolve_ref("#/components/schemas/Product")
         assert "properties" in resolved
@@ -177,3 +201,97 @@ class TestSchemaProcessorRefResolution:
     def test_resolve_non_hash_ref(self, processor):
         resolved = processor.resolve_ref("external.json#/Foo")
         assert resolved == {}
+
+    def test_resolve_circular_ref(self):
+        """Circular $ref chains should not cause RecursionError."""
+        schema = {
+            "components": {
+                "schemas": {
+                    "A": {"$ref": "#/components/schemas/B"},
+                    "B": {"$ref": "#/components/schemas/A"},
+                }
+            },
+            "info": {"title": "Test", "version": "1.0"},
+            "paths": {},
+        }
+        from drf_mcp_docs.schema.processor import SchemaProcessor
+
+        proc = SchemaProcessor(schema)
+        result = proc.resolve_ref("#/components/schemas/A")
+        assert isinstance(result, dict)
+
+    def test_resolve_deep_ref_chain(self):
+        """Deeply nested $ref chains stop at depth limit."""
+        schemas = {}
+        for i in range(15):
+            schemas[f"Level{i}"] = {"$ref": f"#/components/schemas/Level{i + 1}"}
+        schemas["Level15"] = {"type": "object", "properties": {"id": {"type": "integer"}}}
+        schema = {
+            "components": {"schemas": schemas},
+            "info": {"title": "Test", "version": "1.0"},
+            "paths": {},
+        }
+        from drf_mcp_docs.schema.processor import SchemaProcessor
+
+        proc = SchemaProcessor(schema)
+        # Default depth=10 should stop before reaching Level15
+        result = proc.resolve_ref("#/components/schemas/Level0")
+        assert isinstance(result, dict)
+
+    def test_circular_ref_example_generation(self):
+        """generate_example_from_schema handles circular refs gracefully."""
+        schema = {
+            "components": {
+                "schemas": {
+                    "Node": {
+                        "type": "object",
+                        "properties": {
+                            "name": {"type": "string"},
+                            "child": {"$ref": "#/components/schemas/Node"},
+                        },
+                    }
+                }
+            },
+            "info": {"title": "Test", "version": "1.0"},
+            "paths": {},
+        }
+        from drf_mcp_docs.schema.processor import SchemaProcessor
+
+        proc = SchemaProcessor(schema)
+        result = proc.generate_example_from_schema({"$ref": "#/components/schemas/Node"})
+        assert isinstance(result, dict)
+        assert "name" in result
+
+
+class TestSchemaProcessorEdgeCases:
+    def test_schema_with_no_servers(self):
+        proc = SchemaProcessor({"info": {"title": "T", "version": "1"}, "paths": {}})
+        overview = proc.get_overview()
+        assert overview.base_url == ""
+
+    def test_schema_with_no_paths(self):
+        proc = SchemaProcessor({"info": {"title": "T", "version": "1"}})
+        endpoints = proc.get_endpoints()
+        assert endpoints == []
+
+    def test_schema_with_no_components(self):
+        proc = SchemaProcessor({"info": {"title": "T", "version": "1"}, "paths": {}})
+        schemas = proc.get_schemas()
+        assert schemas == []
+        assert proc.get_auth_methods() == []
+
+    def test_malformed_operation_non_dict(self):
+        proc = SchemaProcessor(
+            {
+                "info": {"title": "T", "version": "1"},
+                "paths": {"/test": {"get": "not-a-dict", "post": {"summary": "ok"}}},
+            }
+        )
+        endpoints = proc.get_endpoints()
+        assert len(endpoints) == 1
+        assert endpoints[0].method == "POST"
+
+    def test_frozen_dataclass_immutability(self, processor):
+        endpoint = processor.get_endpoints()[0]
+        with __import__("pytest").raises(AttributeError):
+            endpoint.path = "/mutated"

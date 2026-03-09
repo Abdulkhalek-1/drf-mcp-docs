@@ -168,6 +168,8 @@ Returns details about all authentication methods.
 
 Tools are functions that the AI agent calls with specific parameters. They enable searching, filtering, and generating output.
 
+> **Input validation:** All tools that accept `path` and `method` parameters validate them before processing. The `path` must start with `/` and `method` must be a valid HTTP method (GET, POST, PUT, PATCH, DELETE, OPTIONS, HEAD). Invalid inputs return a JSON error response.
+
 ### `search_endpoints`
 
 Search API endpoints by keyword. Matches against path, summary, description, operationId, and tags.
@@ -212,11 +214,10 @@ Generate an example request for an endpoint, including URL parameters and reques
 
 **Parameters:**
 
-| Parameter | Type | Required | Default | Description |
-|---|---|---|---|---|
-| `path` | string | yes | — | Endpoint path |
-| `method` | string | yes | — | HTTP method |
-| `format` | string | no | `"json"` | Output format |
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `path` | string | yes | Endpoint path (must start with `/`) |
+| `method` | string | yes | HTTP method (GET, POST, PUT, PATCH, DELETE, OPTIONS, HEAD) |
 
 **Returns:** Object with:
 - `method` — HTTP method
@@ -257,7 +258,7 @@ Generate an example response for an endpoint.
 
 ### `generate_code_snippet`
 
-Generate frontend integration code for calling an API endpoint.
+Generate ready-to-use integration code for calling an API endpoint. Produces self-documenting functions with real types, proper auth handling, and usage examples.
 
 **Parameters:**
 
@@ -265,22 +266,29 @@ Generate frontend integration code for calling an API endpoint.
 |---|---|---|---|---|
 | `path` | string | yes | — | Endpoint path |
 | `method` | string | yes | — | HTTP method |
-| `language` | string | no | from settings | `"javascript"` or `"typescript"` |
-| `client` | string | no | from settings | `"fetch"`, `"axios"`, or `"ky"` |
+| `language` | string | no | from settings | `"javascript"`, `"typescript"`, or `"python"` |
+| `client` | string | no | from settings | JS/TS: `"fetch"`, `"axios"`, `"ky"` — Python: `"requests"`, `"httpx"` |
 
-**Returns:** Object with `language`, `client`, and `code` fields.
+**Returns:** Object with `language`, `client`, `code`, and `metadata` fields.
 
-**Example response (fetch + JavaScript):**
+The `code` field contains the full snippet (imports, type definitions, JSDoc/docstring, function, usage example). The `metadata` field provides structured information about the endpoint, auth, parameters, and response.
 
 ```json
 {
   "language": "javascript",
   "client": "fetch",
-  "code": "async function productsList(params = {}) {\n  const queryString = new URLSearchParams(params).toString();\n  const url = '/api/products/' + (queryString ? `?${queryString}` : '');\n\n  const response = await fetch(url, {\n    method: 'GET',\n    headers: {\n      'Authorization': `Bearer ${token}`,\n    },\n  });\n\n  if (!response.ok) {\n    throw new Error(`HTTP ${response.status}: ${response.statusText}`);\n  }\n\n  return response.json();\n}"
+  "code": "/** ... */\nasync function productsList(...) { ... }",
+  "metadata": {
+    "function_name": "productsList",
+    "endpoint": {"path": "/api/products/", "method": "GET", "summary": "List all products", "deprecated": false},
+    "auth": {"required": true, "methods": [{"type": "bearer", "description": "Bearer token (JWT)"}]},
+    "parameters": {"path": [], "query": [{"name": "page", "type": "integer", "required": false}], "body_required": false},
+    "response": {"success_status": "200", "description": "Successful response"}
+  }
 }
 ```
 
-See [Code Generation](code-generation.md) for details on each client/language combo.
+See [Code Generation](code-generation.md) for full examples in all languages and clients.
 
 ### `list_schemas`
 

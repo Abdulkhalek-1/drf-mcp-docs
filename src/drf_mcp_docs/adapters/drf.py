@@ -9,6 +9,8 @@ class DRFBuiltinAdapter(BaseSchemaAdapter):
     @classmethod
     def is_available(cls) -> bool:
         try:
+            import inflection  # noqa: F401
+            import uritemplate  # noqa: F401
             from rest_framework.schemas.openapi import SchemaGenerator  # noqa: F401
 
             return True

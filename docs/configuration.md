@@ -182,7 +182,7 @@ DRF_MCP_DOCS = {
 - **Type:** `str`
 - **Default:** `'javascript'`
 
-Default language for the `generate_code_snippet` tool when no language is specified. Options: `'javascript'`, `'typescript'`.
+Default language for the `generate_code_snippet` tool when no language is specified. Options: `'javascript'`, `'typescript'`, `'python'`.
 
 ```python
 DRF_MCP_DOCS = {
@@ -195,7 +195,7 @@ DRF_MCP_DOCS = {
 - **Type:** `str`
 - **Default:** `'fetch'`
 
-Default HTTP client library for code generation. Options: `'fetch'`, `'axios'`, `'ky'`.
+Default HTTP client library for code generation. Options: `'fetch'`, `'axios'`, `'ky'` (JS/TS), `'requests'`, `'httpx'` (Python). When the client doesn't match the language, it is auto-selected (e.g., `python` + `fetch` → `requests`).
 
 ```python
 DRF_MCP_DOCS = {

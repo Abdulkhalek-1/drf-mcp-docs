@@ -56,16 +56,16 @@ See [Architecture](architecture.md) for detailed internals.
 ### Good first issues
 
 - Add more string format examples to `_string_example()` in `processor.py`
-- Add more HTTP client templates (e.g., `ofetch`, `got`)
-- Improve TypeScript type generation for complex schemas
-- Add response type generation to code snippets
+- Add more JS/TS HTTP client templates (e.g., `ofetch`, `got`)
+- Add more Python HTTP client templates (e.g., `aiohttp`, `urllib3`)
+- Handle `nullable` types in TypedDict generation (Python)
 
 ### Medium complexity
 
 - Add Vue composable / React hook code generation templates
 - Support `allOf` / `oneOf` / `anyOf` in schema processing
-- Add endpoint filtering by `SCHEMA_PATH_PREFIX` and `EXCLUDE_PATHS`
 - Add pagination schema support (cursor, page number, limit/offset)
+- Support nested object interfaces in TypeScript (currently uses `Record<string, any>`)
 
 ### Larger features
 

@@ -13,6 +13,8 @@ rather than using Django URL patterns:
 
 from __future__ import annotations
 
+import asyncio
+import contextlib
 from typing import TYPE_CHECKING
 
 from drf_mcp_docs.settings import get_setting
@@ -45,15 +47,78 @@ def mount_mcp(django_app, mcp=None, path: str | None = None):
     if not mcp_path.startswith("/"):
         mcp_path = "/" + mcp_path
 
+    # Align the MCP SDK's internal route with the mount path
+    mcp.settings.streamable_http_path = mcp_path.rstrip("/") or "/"
+
     mcp_app = mcp.streamable_http_app()
 
+    async def _handle_lifespan(scope, receive, send):
+        """Handle lifespan events for the MCP app."""
+        startup_complete = asyncio.Event()
+        shutdown_event = asyncio.Event()
+        mcp_failed = asyncio.Event()
+        first_receive = True
+
+        async def mcp_lifespan():
+            nonlocal first_receive
+
+            async def mcp_receive():
+                nonlocal first_receive
+                if first_receive:
+                    first_receive = False
+                    return {"type": "lifespan.startup"}
+                # Block until shutdown is signaled
+                await shutdown_event.wait()
+                return {"type": "lifespan.shutdown"}
+
+            async def mcp_send(message):
+                if message["type"] == "lifespan.startup.complete":
+                    startup_complete.set()
+                elif message["type"] == "lifespan.startup.failed":
+                    mcp_failed.set()
+                    startup_complete.set()
+
+            try:
+                await mcp_app(scope, mcp_receive, mcp_send)
+            except asyncio.CancelledError:
+                pass
+            except Exception:
+                if not startup_complete.is_set():
+                    mcp_failed.set()
+                    startup_complete.set()
+
+        mcp_task = asyncio.create_task(mcp_lifespan())
+        await startup_complete.wait()
+
+        if mcp_failed.is_set():
+            await send({"type": "lifespan.startup.failed", "message": "MCP server failed to start"})
+            return
+
+        await send({"type": "lifespan.startup.complete"})
+
+        # Wait for shutdown signal from uvicorn
+        while True:
+            message = await receive()
+            if message["type"] == "lifespan.shutdown":
+                break
+
+        # Signal MCP to shut down gracefully, then cancel if it doesn't exit
+        shutdown_event.set()
+        try:
+            await asyncio.wait_for(asyncio.shield(mcp_task), timeout=5.0)
+        except (asyncio.TimeoutError, asyncio.CancelledError):
+            mcp_task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await mcp_task
+
+        await send({"type": "lifespan.shutdown.complete"})
+
     async def asgi_app(scope, receive, send):
-        if scope["type"] == "http" and scope["path"].startswith(mcp_path):
-            # Strip the prefix for the MCP app
-            scope = dict(scope)
-            scope["path"] = scope["path"][len(mcp_path.rstrip("/")) :] or "/"
-            scope["root_path"] = scope.get("root_path", "") + mcp_path.rstrip("/")
+        scope_type = scope["type"]
+        if scope_type == "http" and scope["path"].startswith(mcp_path.rstrip("/")):
             await mcp_app(scope, receive, send)
+        elif scope_type == "lifespan":
+            await _handle_lifespan(scope, receive, send)
         else:
             await django_app(scope, receive, send)
 

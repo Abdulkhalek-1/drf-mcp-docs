@@ -20,7 +20,7 @@ class TestResources:
 
         result = json.loads(api_overview())
         assert result["title"] == "Test API"
-        assert result["endpoint_count"] == 6
+        assert result["endpoint_count"] == 7
         assert result["version"] == "1.0.0"
 
     def test_api_endpoints_resource(self):
@@ -28,7 +28,7 @@ class TestResources:
 
         result = json.loads(api_endpoints())
         assert isinstance(result, list)
-        assert len(result) == 6
+        assert len(result) == 7
         for ep in result:
             assert "path" in ep
             assert "method" in ep
@@ -61,9 +61,10 @@ class TestResources:
 
         result = json.loads(api_auth())
         assert isinstance(result, list)
-        assert len(result) == 1
-        assert result[0]["name"] == "bearerAuth"
-        assert result[0]["type"] == "bearer"
+        assert len(result) == 2
+        auth_names = {a["name"] for a in result}
+        assert "bearerAuth" in auth_names
+        assert "apiKeyAuth" in auth_names
 
     def test_api_endpoint_detail_resource(self):
         from drf_mcp_docs.server.resources import api_endpoint_detail

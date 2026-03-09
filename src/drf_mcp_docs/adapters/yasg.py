@@ -1,6 +1,10 @@
 from __future__ import annotations
 
+import logging
+
 from drf_mcp_docs.adapters.base import BaseSchemaAdapter
+
+logger = logging.getLogger(__name__)
 
 
 class YasgAdapter(BaseSchemaAdapter):
@@ -149,9 +153,16 @@ class YasgAdapter(BaseSchemaAdapter):
                     k: v for k, v in param.items() if k in ("type", "format", "description", "enum", "default")
                 }
             else:
+                param_in = param.get("in", "query")
+                if param_in not in ("path", "query", "header", "cookie"):
+                    logger.warning(
+                        "Unknown parameter location '%s' for parameter '%s'",
+                        param_in,
+                        param.get("name", ""),
+                    )
                 p = {
                     "name": param.get("name", ""),
-                    "in": param.get("in", "query"),
+                    "in": param_in,
                     "required": param.get("required", False),
                 }
                 if "description" in param:

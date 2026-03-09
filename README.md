@@ -26,7 +26,7 @@
 
 - **MCP Resources** — Browse your API structure: overview, endpoints, schemas, auth methods
 - **MCP Tools** — Search endpoints, get detailed docs, generate request/response examples
-- **Code Generation** — Generate frontend integration code (fetch, axios, ky) in JavaScript or TypeScript
+- **Code Generation** — Generate integration code with real types and docs (JS/TS: fetch, axios, ky — Python: requests, httpx)
 - **Multi-adapter** — Works with drf-spectacular, drf-yasg, or DRF's built-in schema generation
 - **Zero risk** — Read-only documentation exposure, no data mutation possible
 - **Two transports** — stdio for local AI tools, streamable-http for remote/network access
@@ -76,7 +76,7 @@ python manage.py runmcpserver --transport streamable-http --host 0.0.0.0 --port 
 
 ### 4. Connect your AI tool
 
-**Claude Code** (`~/.claude/claude_code_config.json`):
+**Claude Code** (`~/.claude.json`):
 
 ```json
 {
@@ -163,8 +163,8 @@ DRF_MCP_DOCS = {
     'MCP_ENDPOINT': '/mcp/',                     # URL path for HTTP transport
 
     # Code generation
-    'DEFAULT_CODE_LANGUAGE': 'javascript',       # 'javascript' or 'typescript'
-    'DEFAULT_HTTP_CLIENT': 'fetch',              # 'fetch', 'axios', or 'ky'
+    'DEFAULT_CODE_LANGUAGE': 'javascript',       # 'javascript', 'typescript', or 'python'
+    'DEFAULT_HTTP_CLIENT': 'fetch',              # 'fetch', 'axios', 'ky', 'requests', or 'httpx'
 }
 ```
 
