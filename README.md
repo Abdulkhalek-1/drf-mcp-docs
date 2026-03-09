@@ -8,6 +8,7 @@
     <a href="https://pypi.org/project/drf-mcp-docs/"><img src="https://img.shields.io/pypi/pyversions/drf-mcp-docs.svg" alt="Python versions"></a>
     <a href="https://github.com/Abdulkhalek-1/drf-mcp-docs/blob/main/LICENSE"><img src="https://img.shields.io/github/license/Abdulkhalek-1/drf-mcp-docs.svg" alt="License"></a>
     <a href="https://github.com/Abdulkhalek-1/drf-mcp-docs/actions"><img src="https://img.shields.io/github/actions/workflow/status/Abdulkhalek-1/drf-mcp-docs/ci.yml?branch=main" alt="CI"></a>
+    <a href="https://abdulkhalek-1.github.io/drf-mcp-docs/"><img src="https://img.shields.io/badge/docs-online-blue" alt="Docs"></a>
   </p>
 </p>
 

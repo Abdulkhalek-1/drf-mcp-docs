@@ -54,6 +54,7 @@ dev = [
 
 [project.urls]
 Homepage = "https://github.com/Abdulkhalek-1/drf-mcp-docs"
+Documentation = "https://abdulkhalek-1.github.io/drf-mcp-docs/"
 Repository = "https://github.com/Abdulkhalek-1/drf-mcp-docs"
 Issues = "https://github.com/Abdulkhalek-1/drf-mcp-docs/issues"
 
