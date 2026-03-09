@@ -76,7 +76,7 @@ python manage.py runmcpserver --transport streamable-http --host 0.0.0.0 --port 
 
 ### 4. Connect your AI tool
 
-**Claude Code** (`~/.claude/claude_code_config.json`):
+**Claude Code** (`~/.claude.json`):
 
 ```json
 {

@@ -90,7 +90,7 @@ Use this when the AI tool connects over the network.
 
 ### Claude Code
 
-Add to your Claude Code MCP configuration (`~/.claude/claude_code_config.json`):
+Add to your Claude Code MCP configuration (`~/.claude.json`):
 
 ```json
 {

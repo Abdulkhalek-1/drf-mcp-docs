@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **`SCHEMA_PATH_PREFIX` and `EXCLUDE_PATHS`** — These settings were defined and documented but never implemented; paths are now filtered in `get_processor()` before schema processing
+- **Streamable-HTTP test** — Fixed incorrect test assertion that checked `run()` kwargs instead of `server.settings` attributes
+- **Claude Code config path** — Updated documentation to use `~/.claude.json` instead of the incorrect `~/.claude/claude_code_config.json`
 - **Thread safety** — Added double-checked locking with `threading.Lock()` to `get_mcp_server()` and `get_processor()` singletons, preventing race conditions under multi-worker deployments
 - **Recursion depth limits** — `resolve_ref()`, `generate_example_from_schema()`, and `generate_example_value()` now enforce a max depth of 10 to prevent stack overflow from circular `$ref` chains
 - **Input validation** — All MCP tool functions now validate `path` (must start with `/`) and `method` (must be a valid HTTP method) before processing
@@ -23,6 +26,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Frozen dataclasses** — All 8 schema dataclasses (`Endpoint`, `Parameter`, `Response`, etc.) are now immutable with `frozen=True`
 - **Public API** — Renamed `_generate_example_value()` to `generate_example_value()` (public method)
 - **Removed `format` parameter** — `get_request_example()` no longer accepts the unused `format` parameter
+- **Removed `default_app_config`** — Removed deprecated Django attribute (deprecated since Django 3.2; minimum supported version is 4.2)
 
 ### Added
 
@@ -31,7 +35,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Management command tests** — New `tests/test_management.py` covering `runmcpserver` command
 - **Concurrency tests** — New `tests/test_concurrency.py` verifying thread-safe singleton behavior
 - **Edge-case tests** — Tests for circular refs, empty enums, missing server URLs, schemas with no paths/components, malformed operations, and frozen dataclass immutability
-- **90 total tests** (up from 62)
+- **Path filtering tests** — New `tests/test_filtering.py` covering `SCHEMA_PATH_PREFIX` and `EXCLUDE_PATHS`
+- **Settings tests** — New `tests/test_settings.py` covering `get_setting()` and `get_all_settings()`
+- **ASGI mount tests** — New `tests/test_urls.py` covering `mount_mcp()` routing
 
 ## [0.1.0] - 2026-03-08
 

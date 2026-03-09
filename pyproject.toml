@@ -4,13 +4,13 @@ build-backend = "hatchling.build"
 
 [project]
 name = "drf-mcp-docs"
-version = "0.1.1rc1"
+version = "0.1.1"
 description = "Expose DRF API documentation via MCP for AI coding agents"
 readme = "README.md"
 license = "MIT"
 requires-python = ">=3.10"
 authors = [
-    { name = "Abdul Khalek" },
+    { name = "Abdulkhalek" },
 ]
 keywords = ["django", "drf", "mcp", "ai", "api", "documentation"]
 classifiers = [

@@ -35,11 +35,9 @@ class TestRunMCPServerCommand:
             stdout=out,
         )
 
-        mock_server.run.assert_called_once_with(
-            transport="streamable-http",
-            host="0.0.0.0",
-            port=9000,
-        )
+        assert mock_server.settings.host == "0.0.0.0"
+        assert mock_server.settings.port == 9000
+        mock_server.run.assert_called_once_with(transport="streamable-http")
 
     @patch("drf_mcp_docs.management.commands.runmcpserver.get_mcp_server")
     @patch("drf_mcp_docs.management.commands.runmcpserver.get_setting", return_value="stdio")

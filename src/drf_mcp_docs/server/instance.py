@@ -12,6 +12,23 @@ _processor: SchemaProcessor | None = None
 _processor_lock = threading.Lock()
 
 
+def _filter_paths(schema: dict) -> dict:
+    """Filter schema paths by SCHEMA_PATH_PREFIX and EXCLUDE_PATHS settings."""
+    prefix = get_setting("SCHEMA_PATH_PREFIX")
+    exclude = get_setting("EXCLUDE_PATHS")
+    paths = schema.get("paths", {})
+    if not prefix and not exclude:
+        return schema
+    filtered = {}
+    for path, data in paths.items():
+        if prefix and not path.startswith(prefix):
+            continue
+        if any(path.startswith(ep) for ep in exclude):
+            continue
+        filtered[path] = data
+    return {**schema, "paths": filtered}
+
+
 def get_processor() -> SchemaProcessor:
     """Get the schema processor, creating and caching it as needed."""
     global _processor
@@ -22,7 +39,7 @@ def get_processor() -> SchemaProcessor:
         if _processor is not None and cache:
             return _processor
         adapter = get_adapter()
-        openapi_schema = adapter.get_schema()
+        openapi_schema = _filter_paths(adapter.get_schema())
         _processor = SchemaProcessor(openapi_schema)
         return _processor
 
