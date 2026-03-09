@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import threading
+
 from mcp.server.fastmcp import FastMCP
 
 from drf_mcp_docs.adapters import get_adapter
@@ -7,6 +9,7 @@ from drf_mcp_docs.schema.processor import SchemaProcessor
 from drf_mcp_docs.settings import get_setting
 
 _processor: SchemaProcessor | None = None
+_processor_lock = threading.Lock()
 
 
 def get_processor() -> SchemaProcessor:
@@ -15,10 +18,13 @@ def get_processor() -> SchemaProcessor:
     cache = get_setting("CACHE_SCHEMA")
     if _processor is not None and cache:
         return _processor
-    adapter = get_adapter()
-    openapi_schema = adapter.get_schema()
-    _processor = SchemaProcessor(openapi_schema)
-    return _processor
+    with _processor_lock:
+        if _processor is not None and cache:
+            return _processor
+        adapter = get_adapter()
+        openapi_schema = adapter.get_schema()
+        _processor = SchemaProcessor(openapi_schema)
+        return _processor
 
 
 def create_mcp_server() -> FastMCP:
