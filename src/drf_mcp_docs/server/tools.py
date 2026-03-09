@@ -1,12 +1,24 @@
 from __future__ import annotations
 
 import json
+import re
 from dataclasses import asdict
 
 from mcp.server.fastmcp import FastMCP
 
 from drf_mcp_docs.server.instance import get_processor
 from drf_mcp_docs.settings import get_setting
+
+_VALID_HTTP_METHODS = {"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS", "HEAD"}
+
+
+def _validate_inputs(path: str, method: str) -> str | None:
+    """Return an error JSON string if inputs are invalid, else None."""
+    if not path.startswith("/"):
+        return json.dumps({"error": f"Invalid path '{path}': must start with '/'"})
+    if method.upper() not in _VALID_HTTP_METHODS:
+        return json.dumps({"error": f"Invalid HTTP method '{method}'"})
+    return None
 
 
 def search_endpoints(
@@ -15,6 +27,8 @@ def search_endpoints(
     tag: str | None = None,
 ) -> str:
     """Search API endpoints by keyword. Matches path, summary, description, and operationId."""
+    if method and method.upper() not in _VALID_HTTP_METHODS:
+        return json.dumps({"error": f"Invalid HTTP method '{method}'"})
     processor = get_processor()
     results = processor.search_endpoints(query, method=method, tag=tag)
     compact = [
@@ -33,6 +47,8 @@ def search_endpoints(
 
 def get_endpoint_detail(path: str, method: str) -> str:
     """Get full documentation for a specific endpoint including parameters, request body, responses, and auth."""
+    if err := _validate_inputs(path, method):
+        return err
     processor = get_processor()
     endpoint = processor.get_endpoint(path, method)
     if endpoint is None:
@@ -43,9 +59,10 @@ def get_endpoint_detail(path: str, method: str) -> str:
 def get_request_example(
     path: str,
     method: str,
-    format: str = "json",
 ) -> str:
     """Generate an example request for an endpoint (body and/or parameters)."""
+    if err := _validate_inputs(path, method):
+        return err
     processor = get_processor()
     endpoint = processor.get_endpoint(path, method)
     if endpoint is None:
@@ -56,7 +73,7 @@ def get_request_example(
     if endpoint.parameters:
         params = {}
         for p in endpoint.parameters:
-            params[p.name] = processor._generate_example_value(p.name, p.schema)
+            params[p.name] = processor.generate_example_value(p.name, p.schema)
         result["parameters"] = params
 
     if endpoint.request_body:
@@ -73,6 +90,8 @@ def get_response_example(
     status_code: str = "200",
 ) -> str:
     """Generate an example response for an endpoint."""
+    if err := _validate_inputs(path, method):
+        return err
     processor = get_processor()
     endpoint = processor.get_endpoint(path, method)
     if endpoint is None:
@@ -111,6 +130,9 @@ def generate_code_snippet(
     Supported languages: javascript, typescript
     Supported clients: fetch, axios, ky
     """
+    if err := _validate_inputs(path, method):
+        return err
+
     lang = language or get_setting("DEFAULT_CODE_LANGUAGE")
     http_client = client or get_setting("DEFAULT_HTTP_CLIENT")
 
@@ -170,14 +192,27 @@ def register_tools(mcp: FastMCP):
 # --- Code snippet generators ---
 
 
+def _sanitize_identifier(value: str) -> str:
+    """Sanitize a value for use as a JS/TS identifier."""
+    return re.sub(r"[^a-zA-Z0-9_$]", "_", value)
+
+
+def _sanitize_string_literal(value: str) -> str:
+    """Escape a value for safe inclusion in a JS string literal."""
+    return (
+        value.replace("\\", "\\\\").replace("'", "\\'").replace("`", "\\`").replace("${", "\\${").replace("\n", "\\n")
+    )
+
+
 def _build_path_with_params(endpoint) -> str:
     path = endpoint.path
     path_params = [p for p in endpoint.parameters if p.location == "path"]
     if path_params:
         for p in path_params:
-            path = path.replace(f"{{{p.name}}}", f"${{{p.name}}}")
+            safe_name = _sanitize_identifier(p.name)
+            path = path.replace(f"{{{p.name}}}", f"${{{safe_name}}}")
         return f"`{path}`"
-    return f"'{path}'"
+    return f"'{_sanitize_string_literal(endpoint.path)}'"
 
 
 def _get_query_params(endpoint) -> list:
@@ -187,10 +222,11 @@ def _get_query_params(endpoint) -> list:
 def _operation_to_func_name(endpoint) -> str:
     if endpoint.operation_id:
         parts = endpoint.operation_id.replace("-", "_").split("_")
-        return parts[0].lower() + "".join(p.capitalize() for p in parts[1:])
+        name = parts[0].lower() + "".join(p.capitalize() for p in parts[1:])
+        return _sanitize_identifier(name)
     method = endpoint.method.lower()
     segments = [s for s in endpoint.path.split("/") if s and not s.startswith("{")]
-    return method + "".join(s.capitalize() for s in segments)
+    return _sanitize_identifier(method + "".join(s.capitalize() for s in segments))
 
 
 def _schema_to_ts_type(schema: dict) -> str:
@@ -220,7 +256,7 @@ def _generate_fetch_snippet(endpoint, processor, use_typescript: bool = False) -
         if path_params:
             for p in path_params:
                 ts_type = _schema_to_ts_type(p.schema)
-                params.append(f"{p.name}: {ts_type}")
+                params.append(f"{_sanitize_identifier(p.name)}: {ts_type}")
         if has_body:
             params.append("data: RequestData")
         if query_params:
@@ -228,7 +264,7 @@ def _generate_fetch_snippet(endpoint, processor, use_typescript: bool = False) -
         sig = f"async function {func_name}({', '.join(params)})" + " {"
     else:
         if path_params:
-            params.extend(p.name for p in path_params)
+            params.extend(_sanitize_identifier(p.name) for p in path_params)
         if has_body:
             params.append("data")
         if query_params:
@@ -289,7 +325,7 @@ def _generate_axios_snippet(endpoint, processor, use_typescript: bool = False) -
         if path_params:
             for p in path_params:
                 ts_type = _schema_to_ts_type(p.schema)
-                params.append(f"{p.name}: {ts_type}")
+                params.append(f"{_sanitize_identifier(p.name)}: {ts_type}")
         if has_body:
             params.append("data: RequestData")
         if query_params:
@@ -297,7 +333,7 @@ def _generate_axios_snippet(endpoint, processor, use_typescript: bool = False) -
         sig = f"async function {func_name}({', '.join(params)})" + " {"
     else:
         if path_params:
-            params.extend(p.name for p in path_params)
+            params.extend(_sanitize_identifier(p.name) for p in path_params)
         if has_body:
             params.append("data")
         if query_params:
@@ -341,7 +377,7 @@ def _generate_ky_snippet(endpoint, processor, use_typescript: bool = False) -> s
         if path_params:
             for p in path_params:
                 ts_type = _schema_to_ts_type(p.schema)
-                params.append(f"{p.name}: {ts_type}")
+                params.append(f"{_sanitize_identifier(p.name)}: {ts_type}")
         if has_body:
             params.append("data: RequestData")
         if query_params:
@@ -349,7 +385,7 @@ def _generate_ky_snippet(endpoint, processor, use_typescript: bool = False) -> s
         sig = f"async function {func_name}({', '.join(params)})" + " {"
     else:
         if path_params:
-            params.extend(p.name for p in path_params)
+            params.extend(_sanitize_identifier(p.name) for p in path_params)
         if has_body:
             params.append("data")
         if query_params:

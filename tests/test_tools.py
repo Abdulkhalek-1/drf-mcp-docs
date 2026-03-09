@@ -126,3 +126,54 @@ class TestGetSchemaDetail:
     def test_get_schema_not_found(self):
         result = json.loads(tools.get_schema_detail("Nonexistent"))
         assert "error" in result
+
+
+class TestInputValidation:
+    def test_invalid_path_no_leading_slash(self):
+        result = json.loads(tools.get_endpoint_detail("no-slash", "get"))
+        assert "error" in result
+        assert "must start with '/'" in result["error"]
+
+    def test_invalid_http_method(self):
+        result = json.loads(tools.get_endpoint_detail("/api/test", "INVALID"))
+        assert "error" in result
+        assert "Invalid HTTP method" in result["error"]
+
+    def test_search_invalid_method(self):
+        result = json.loads(tools.search_endpoints("test", method="INVALID"))
+        assert "error" in result
+        assert "Invalid HTTP method" in result["error"]
+
+    def test_request_example_invalid_path(self):
+        result = json.loads(tools.get_request_example("bad-path", "get"))
+        assert "error" in result
+
+    def test_response_example_invalid_method(self):
+        result = json.loads(tools.get_response_example("/api/test", "BOGUS"))
+        assert "error" in result
+
+    def test_code_snippet_invalid_path(self):
+        result = json.loads(tools.generate_code_snippet("bad", "get"))
+        assert "error" in result
+
+
+class TestCodeSanitization:
+    def test_sanitize_identifier_strips_dangerous_chars(self):
+        from drf_mcp_docs.server.tools import _sanitize_identifier
+
+        assert _sanitize_identifier("test`inject") == "test_inject"
+        assert _sanitize_identifier("foo'bar") == "foo_bar"
+        assert _sanitize_identifier("normal_name") == "normal_name"
+
+    def test_sanitize_string_literal_escapes(self):
+        from drf_mcp_docs.server.tools import _sanitize_string_literal
+
+        assert "\\`" in _sanitize_string_literal("test`value")
+        assert "\\'" in _sanitize_string_literal("test'value")
+        assert "\\${" in _sanitize_string_literal("test${inject}")
+
+    def test_operation_id_with_special_chars(self):
+        """Code generation with special chars in operation_id produces safe output."""
+        result = json.loads(tools.generate_code_snippet("/api/products/", "get"))
+        code = result["code"]
+        assert "function " in code
