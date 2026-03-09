@@ -49,12 +49,15 @@ def get_processor() -> SchemaProcessor:
     """Get the schema processor, creating and caching it as needed."""
     global _processor, _processor_cached_at
     cache = get_setting("CACHE_SCHEMA")
-    if _processor is not None and cache and not _is_cache_expired():
+    # Snapshot for the lock-free fast path to avoid races with invalidate_schema_cache()
+    processor = _processor
+    cached_at = _processor_cached_at
+    if processor is not None and cache and cached_at is not None and not _is_cache_expired():
         logger.debug(
             "Schema processor cache hit (age: %.1fs)",
-            time.monotonic() - _processor_cached_at,
+            time.monotonic() - cached_at,
         )
-        return _processor
+        return processor
     with _processor_lock:
         if _processor is not None and cache and not _is_cache_expired():
             logger.debug(
