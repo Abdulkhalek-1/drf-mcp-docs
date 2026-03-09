@@ -21,6 +21,10 @@ drf-mcp-docs exposes your Django REST Framework API documentation through the Mo
 
 - **[ASGI Integration](asgi-integration.md)** — Mounting MCP alongside your ASGI application
 
+### Support
+
+- **[Troubleshooting](troubleshooting.md)** — Common issues, error messages, and solutions
+
 ### Development
 
 - **[Architecture](architecture.md)** — Internal architecture, data flow, and extension points

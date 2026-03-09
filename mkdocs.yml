@@ -47,6 +47,7 @@ nav:
   - Schema Adapters: schema-adapters.md
   - Code Generation: code-generation.md
   - ASGI Integration: asgi-integration.md
+  - Troubleshooting: troubleshooting.md
   - Architecture: architecture.md
   - Changelog: changelog.md
   - Contributing: contributing.md
