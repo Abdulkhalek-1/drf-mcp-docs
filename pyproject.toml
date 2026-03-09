@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "drf-mcp-docs"
-version = "0.1.1"
+version = "0.1.1rc1"
 description = "Expose DRF API documentation via MCP for AI coding agents"
 readme = "README.md"
 license = "MIT"
@@ -57,6 +57,7 @@ Homepage = "https://github.com/Abdulkhalek-1/drf-mcp-docs"
 Documentation = "https://abdulkhalek-1.github.io/drf-mcp-docs/"
 Repository = "https://github.com/Abdulkhalek-1/drf-mcp-docs"
 Issues = "https://github.com/Abdulkhalek-1/drf-mcp-docs/issues"
+Changelog = "https://github.com/Abdulkhalek-1/drf-mcp-docs/blob/main/CHANGELOG.md"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/drf_mcp_docs"]
