@@ -36,3 +36,6 @@ venv/
 
 # Database
 *.sqlite3
+
+# Serena
+.serena/
