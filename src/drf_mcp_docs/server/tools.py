@@ -220,19 +220,10 @@ def generate_code_snippet(
 
 
 def list_schemas() -> str:
-    """List all data model schemas with their names, types, and field counts."""
+    """List all available schema names and descriptions. Use get_schema_detail for full properties."""
     processor = get_processor()
     schemas = processor.get_schemas()
-    result = [
-        {
-            "name": s.name,
-            "type": s.type,
-            "field_count": len(s.properties),
-            "required_fields": s.required,
-            "description": s.description,
-        }
-        for s in schemas
-    ]
+    result = [{"name": s.name, "description": s.description} for s in schemas]
     return json.dumps(result, indent=2)
 
 

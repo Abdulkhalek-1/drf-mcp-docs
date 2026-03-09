@@ -372,8 +372,7 @@ class TestFullToolPipeline:
         assert len(result) > 0
         for schema in result:
             assert "name" in schema
-            assert "field_count" in schema
-            assert "required_fields" in schema
+            assert "description" in schema
 
     def test_get_schema_detail(self, spectacular_settings):
         schemas = _parse(tools.list_schemas())

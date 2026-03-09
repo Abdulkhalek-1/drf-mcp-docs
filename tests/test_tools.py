@@ -321,6 +321,11 @@ class TestListSchemas:
         names = [s["name"] for s in result]
         assert "Product" in names
 
+    def test_list_schemas_only_name_and_description(self):
+        result = json.loads(tools.list_schemas())
+        for schema in result:
+            assert set(schema.keys()) == {"name", "description"}
+
 
 class TestGetSchemaDetail:
     def test_get_schema(self):
