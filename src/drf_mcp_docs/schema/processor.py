@@ -17,11 +17,14 @@ class SchemaProcessor:
 
     def __init__(self, openapi_schema: dict):
         self.schema = openapi_schema
+        self._ref_cache: dict[str, dict] = {}
 
-    def resolve_ref(self, ref: str) -> dict:
+    def resolve_ref(self, ref: str, _depth: int = 10) -> dict:
         """Resolve a $ref pointer like '#/components/schemas/Pet'."""
-        if not ref.startswith("#/"):
+        if _depth <= 0 or not ref.startswith("#/"):
             return {}
+        if ref in self._ref_cache:
+            return self._ref_cache[ref].copy()
         parts = ref.lstrip("#/").split("/")
         node = self.schema
         for part in parts:
@@ -29,19 +32,24 @@ class SchemaProcessor:
                 node = node.get(part, {})
             else:
                 return {}
-        return dict(node) if isinstance(node, dict) else {}
+        result = dict(node) if isinstance(node, dict) else {}
+        if "$ref" in result:
+            result = self.resolve_ref(result["$ref"], _depth=_depth - 1)
+        self._ref_cache[ref] = result
+        return result.copy()
 
-    def _resolve_schema(self, schema: dict) -> dict:
+    def _resolve_schema(self, schema: dict, _depth: int = 10) -> dict:
         """Resolve a schema, following $ref if present."""
+        if _depth <= 0:
+            return schema
         if "$ref" in schema:
-            resolved = self.resolve_ref(schema["$ref"])
-            return resolved
+            return self.resolve_ref(schema["$ref"], _depth=_depth)
         return schema
 
     def get_overview(self) -> APIOverview:
         info = self.schema.get("info", {})
         servers = self.schema.get("servers", [])
-        base_url = servers[0]["url"] if servers else ""
+        base_url = servers[0].get("url", "") if servers else ""
 
         tags = []
         for tag_info in self.schema.get("tags", []):
@@ -84,26 +92,36 @@ class SchemaProcessor:
         result = []
         for name, scheme in schemes.items():
             auth_type = scheme.get("type", "")
-            auth = AuthMethod(name=name, type=auth_type)
+            description = ""
+            header_name = None
+            auth_scheme = None
 
             if auth_type == "http":
-                auth.scheme = scheme.get("scheme", "")
-                if auth.scheme == "bearer":
-                    auth.type = "bearer"
-                    auth.description = f"Bearer token ({scheme.get('bearerFormat', 'JWT')})"
+                auth_scheme = scheme.get("scheme", "")
+                if auth_scheme == "bearer":
+                    auth_type = "bearer"
+                    description = f"Bearer token ({scheme.get('bearerFormat', 'JWT')})"
                 else:
-                    auth.type = auth.scheme
-                    auth.description = f"HTTP {auth.scheme} authentication"
+                    auth_type = auth_scheme
+                    description = f"HTTP {auth_scheme} authentication"
             elif auth_type == "apiKey":
-                auth.header_name = scheme.get("name", "")
+                header_name = scheme.get("name", "")
                 location = scheme.get("in", "header")
-                auth.description = f"API key in {location}: {auth.header_name}"
+                description = f"API key in {location}: {header_name}"
             elif auth_type == "oauth2":
-                auth.description = "OAuth 2.0"
+                description = "OAuth 2.0"
             else:
-                auth.description = scheme.get("description", auth_type)
+                description = scheme.get("description", auth_type)
 
-            result.append(auth)
+            result.append(
+                AuthMethod(
+                    name=name,
+                    type=auth_type,
+                    description=description,
+                    header_name=header_name,
+                    scheme=auth_scheme,
+                )
+            )
         return result
 
     def get_endpoints(self, tag: str | None = None) -> list[Endpoint]:
@@ -257,14 +275,17 @@ class SchemaProcessor:
                 results.append(endpoint)
         return results
 
-    def generate_example_from_schema(self, schema: dict) -> dict | list | str | None:
+    def generate_example_from_schema(self, schema: dict, _depth: int = 10) -> dict | list | str | None:
         """Generate an example value from a JSON schema."""
+        if _depth <= 0:
+            return None
+
         if "example" in schema:
             return schema["example"]
 
         if "$ref" in schema:
-            resolved = self.resolve_ref(schema["$ref"])
-            return self.generate_example_from_schema(resolved)
+            resolved = self.resolve_ref(schema["$ref"], _depth=_depth)
+            return self.generate_example_from_schema(resolved, _depth=_depth - 1)
 
         schema_type = schema.get("type", "object")
 
@@ -273,27 +294,30 @@ class SchemaProcessor:
             for prop_name, prop_schema in schema.get("properties", {}).items():
                 if prop_schema.get("readOnly"):
                     continue
-                result[prop_name] = self._generate_example_value(prop_name, prop_schema)
+                result[prop_name] = self.generate_example_value(prop_name, prop_schema, _depth=_depth - 1)
             return result
 
         if schema_type == "array":
             items = schema.get("items", {})
-            return [self.generate_example_from_schema(items)]
+            return [self.generate_example_from_schema(items, _depth=_depth - 1)]
 
-        return self._generate_example_value("value", schema)
+        return self.generate_example_value("value", schema, _depth=_depth - 1)
 
-    def _generate_example_value(self, name: str, schema: dict):
+    def generate_example_value(self, name: str, schema: dict, _depth: int = 10):
         """Generate a plausible example value for a single field."""
+        if _depth <= 0:
+            return "..."
+
         if "example" in schema:
             return schema["example"]
         if "default" in schema:
             return schema["default"]
         if "enum" in schema:
-            return schema["enum"][0]
+            return schema["enum"][0] if schema["enum"] else None
 
         if "$ref" in schema:
-            resolved = self.resolve_ref(schema["$ref"])
-            return self.generate_example_from_schema(resolved)
+            resolved = self.resolve_ref(schema["$ref"], _depth=_depth)
+            return self.generate_example_from_schema(resolved, _depth=_depth - 1)
 
         field_type = schema.get("type", "string")
         fmt = schema.get("format", "")
@@ -307,10 +331,10 @@ class SchemaProcessor:
 
         if field_type == "array":
             items = schema.get("items", {})
-            return [self._generate_example_value(name, items)]
+            return [self.generate_example_value(name, items, _depth=_depth - 1)]
 
         if field_type == "object":
-            return self.generate_example_from_schema(schema)
+            return self.generate_example_from_schema(schema, _depth=_depth - 1)
 
         return type_examples.get(field_type, "string")
 
