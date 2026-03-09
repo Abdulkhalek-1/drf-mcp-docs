@@ -10,7 +10,7 @@ class TestSchemaProcessorOverview:
         assert overview.description == "A test API for drf-mcp-docs"
         assert overview.version == "1.0.0"
         assert overview.base_url == "https://api.example.com/v1"
-        assert overview.endpoint_count == 6  # GET/POST products, GET/PUT/DELETE product, GET categories
+        assert overview.endpoint_count == 7  # GET/POST products, GET/PUT/DELETE product, GET categories, GET category
 
     def test_overview_tags(self, processor):
         overview = processor.get_overview()
@@ -20,9 +20,10 @@ class TestSchemaProcessorOverview:
 
     def test_overview_auth_methods(self, processor):
         overview = processor.get_overview()
-        assert len(overview.auth_methods) == 1
-        assert overview.auth_methods[0].name == "bearerAuth"
-        assert overview.auth_methods[0].type == "bearer"
+        assert len(overview.auth_methods) == 2
+        auth_names = {a.name for a in overview.auth_methods}
+        assert "bearerAuth" in auth_names
+        assert "apiKeyAuth" in auth_names
 
     def test_overview_server_without_url_key(self):
         schema = {
@@ -38,13 +39,13 @@ class TestSchemaProcessorOverview:
 class TestSchemaProcessorEndpoints:
     def test_get_all_endpoints(self, processor):
         endpoints = processor.get_endpoints()
-        assert len(endpoints) == 6
+        assert len(endpoints) == 7
 
     def test_get_endpoints_by_tag(self, processor):
         products = processor.get_endpoints(tag="products")
         assert len(products) == 5
         categories = processor.get_endpoints(tag="categories")
-        assert len(categories) == 1
+        assert len(categories) == 2
 
     def test_get_single_endpoint(self, processor):
         endpoint = processor.get_endpoint("/api/products/", "get")

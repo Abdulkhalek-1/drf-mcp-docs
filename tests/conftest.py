@@ -178,6 +178,32 @@ SAMPLE_OPENAPI_SCHEMA = {
                 },
             }
         },
+        "/api/categories/{slug}/": {
+            "get": {
+                "operationId": "categories_read",
+                "summary": "Get a category by slug",
+                "tags": ["categories"],
+                "parameters": [
+                    {
+                        "name": "slug",
+                        "in": "path",
+                        "required": True,
+                        "schema": {"type": "string"},
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successful response",
+                        "content": {
+                            "application/json": {
+                                "schema": {"$ref": "#/components/schemas/Category"},
+                            }
+                        },
+                    }
+                },
+                "security": [{"apiKeyAuth": []}],
+            }
+        },
     },
     "components": {
         "schemas": {
@@ -224,7 +250,12 @@ SAMPLE_OPENAPI_SCHEMA = {
                 "type": "http",
                 "scheme": "bearer",
                 "bearerFormat": "JWT",
-            }
+            },
+            "apiKeyAuth": {
+                "type": "apiKey",
+                "in": "header",
+                "name": "X-API-Key",
+            },
         },
     },
 }
