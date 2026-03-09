@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 
-@dataclass
+@dataclass(frozen=True)
 class AuthMethod:
     name: str
     type: str  # bearer, basic, apiKey, oauth2
@@ -12,7 +12,7 @@ class AuthMethod:
     scheme: str | None = None
 
 
-@dataclass
+@dataclass(frozen=True)
 class Parameter:
     name: str
     location: str  # path, query, header
@@ -21,7 +21,7 @@ class Parameter:
     description: str = ""
 
 
-@dataclass
+@dataclass(frozen=True)
 class RequestBody:
     content_type: str = "application/json"
     schema: dict = field(default_factory=dict)
@@ -29,7 +29,7 @@ class RequestBody:
     example: dict | None = None
 
 
-@dataclass
+@dataclass(frozen=True)
 class Response:
     status_code: str = "200"
     description: str = ""
@@ -37,7 +37,7 @@ class Response:
     example: dict | None = None
 
 
-@dataclass
+@dataclass(frozen=True)
 class Endpoint:
     path: str
     method: str
@@ -53,13 +53,13 @@ class Endpoint:
     deprecated: bool = False
 
 
-@dataclass
+@dataclass(frozen=True)
 class Tag:
     name: str
     description: str = ""
 
 
-@dataclass
+@dataclass(frozen=True)
 class APIOverview:
     title: str = ""
     description: str = ""
@@ -70,7 +70,7 @@ class APIOverview:
     endpoint_count: int = 0
 
 
-@dataclass
+@dataclass(frozen=True)
 class SchemaDefinition:
     name: str
     type: str = "object"
