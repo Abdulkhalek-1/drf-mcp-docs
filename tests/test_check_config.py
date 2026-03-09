@@ -8,6 +8,25 @@ from django.core.management import call_command
 
 from tests.conftest import SAMPLE_OPENAPI_SCHEMA
 
+_DEFAULT_SETTINGS = {
+    "SERVER_NAME": "test",
+    "SERVER_INSTRUCTIONS": "",
+    "SCHEMA_ADAPTER": None,
+    "SCHEMA_PATH_PREFIX": "/api/",
+    "EXCLUDE_PATHS": [],
+    "CACHE_SCHEMA": True,
+    "CACHE_TTL": None,
+    "TRANSPORT": "streamable-http",
+    "MCP_ENDPOINT": "/mcp/",
+    "DEFAULT_CODE_LANGUAGE": "javascript",
+    "DEFAULT_HTTP_CLIENT": "fetch",
+}
+
+
+def _make_get_setting(**overrides):
+    merged = {**_DEFAULT_SETTINGS, **overrides}
+    return lambda name: merged.get(name, name)
+
 
 def _run(**overrides):
     """Run checkmcpconfig with patched adapter and optional settings overrides."""
@@ -18,21 +37,7 @@ def _run(**overrides):
     with (
         patch(
             "drf_mcp_docs.management.commands.checkmcpconfig.get_setting",
-            side_effect=lambda name,
-            _defaults={
-                "SERVER_NAME": "test",
-                "SERVER_INSTRUCTIONS": "",
-                "SCHEMA_ADAPTER": None,
-                "SCHEMA_PATH_PREFIX": "/api/",
-                "EXCLUDE_PATHS": [],
-                "CACHE_SCHEMA": True,
-                "CACHE_TTL": None,
-                "TRANSPORT": "streamable-http",
-                "MCP_ENDPOINT": "/mcp/",
-                "DEFAULT_CODE_LANGUAGE": "javascript",
-                "DEFAULT_HTTP_CLIENT": "fetch",
-                **overrides,
-            }: _defaults.get(name, name),
+            side_effect=_make_get_setting(**overrides),
         ),
         patch(
             "drf_mcp_docs.management.commands.checkmcpconfig.django_settings",
@@ -56,21 +61,7 @@ def _run_expect_exit(**overrides):
     with (
         patch(
             "drf_mcp_docs.management.commands.checkmcpconfig.get_setting",
-            side_effect=lambda name,
-            _defaults={
-                "SERVER_NAME": "test",
-                "SERVER_INSTRUCTIONS": "",
-                "SCHEMA_ADAPTER": None,
-                "SCHEMA_PATH_PREFIX": "/api/",
-                "EXCLUDE_PATHS": [],
-                "CACHE_SCHEMA": True,
-                "CACHE_TTL": None,
-                "TRANSPORT": "streamable-http",
-                "MCP_ENDPOINT": "/mcp/",
-                "DEFAULT_CODE_LANGUAGE": "javascript",
-                "DEFAULT_HTTP_CLIENT": "fetch",
-                **overrides,
-            }: _defaults.get(name, name),
+            side_effect=_make_get_setting(**overrides),
         ),
         patch(
             "drf_mcp_docs.management.commands.checkmcpconfig.django_settings",
@@ -176,20 +167,7 @@ class TestCheckAdapters:
         with (
             patch(
                 "drf_mcp_docs.management.commands.checkmcpconfig.get_setting",
-                side_effect=lambda name,
-                _defaults={
-                    "SERVER_NAME": "test",
-                    "SERVER_INSTRUCTIONS": "",
-                    "SCHEMA_ADAPTER": None,
-                    "SCHEMA_PATH_PREFIX": "/api/",
-                    "EXCLUDE_PATHS": [],
-                    "CACHE_SCHEMA": True,
-                    "CACHE_TTL": None,
-                    "TRANSPORT": "streamable-http",
-                    "MCP_ENDPOINT": "/mcp/",
-                    "DEFAULT_CODE_LANGUAGE": "javascript",
-                    "DEFAULT_HTTP_CLIENT": "fetch",
-                }: _defaults.get(name, name),
+                side_effect=_make_get_setting(),
             ),
             patch(
                 "drf_mcp_docs.management.commands.checkmcpconfig.django_settings",
@@ -219,20 +197,7 @@ class TestCheckSchema:
         with (
             patch(
                 "drf_mcp_docs.management.commands.checkmcpconfig.get_setting",
-                side_effect=lambda name,
-                _defaults={
-                    "SERVER_NAME": "test",
-                    "SERVER_INSTRUCTIONS": "",
-                    "SCHEMA_ADAPTER": None,
-                    "SCHEMA_PATH_PREFIX": "/api/",
-                    "EXCLUDE_PATHS": [],
-                    "CACHE_SCHEMA": True,
-                    "CACHE_TTL": None,
-                    "TRANSPORT": "streamable-http",
-                    "MCP_ENDPOINT": "/mcp/",
-                    "DEFAULT_CODE_LANGUAGE": "javascript",
-                    "DEFAULT_HTTP_CLIENT": "fetch",
-                }: _defaults.get(name, name),
+                side_effect=_make_get_setting(),
             ),
             patch(
                 "drf_mcp_docs.management.commands.checkmcpconfig.django_settings",
@@ -261,20 +226,7 @@ class TestCheckSchema:
         with (
             patch(
                 "drf_mcp_docs.management.commands.checkmcpconfig.get_setting",
-                side_effect=lambda name,
-                _defaults={
-                    "SERVER_NAME": "test",
-                    "SERVER_INSTRUCTIONS": "",
-                    "SCHEMA_ADAPTER": None,
-                    "SCHEMA_PATH_PREFIX": "/api/",
-                    "EXCLUDE_PATHS": [],
-                    "CACHE_SCHEMA": True,
-                    "CACHE_TTL": None,
-                    "TRANSPORT": "streamable-http",
-                    "MCP_ENDPOINT": "/mcp/",
-                    "DEFAULT_CODE_LANGUAGE": "javascript",
-                    "DEFAULT_HTTP_CLIENT": "fetch",
-                }: _defaults.get(name, name),
+                side_effect=_make_get_setting(),
             ),
             patch(
                 "drf_mcp_docs.management.commands.checkmcpconfig.django_settings",
@@ -303,20 +255,7 @@ class TestCheckSchema:
         with (
             patch(
                 "drf_mcp_docs.management.commands.checkmcpconfig.get_setting",
-                side_effect=lambda name,
-                _defaults={
-                    "SERVER_NAME": "test",
-                    "SERVER_INSTRUCTIONS": "",
-                    "SCHEMA_ADAPTER": None,
-                    "SCHEMA_PATH_PREFIX": "/v2/",
-                    "EXCLUDE_PATHS": [],
-                    "CACHE_SCHEMA": True,
-                    "CACHE_TTL": None,
-                    "TRANSPORT": "streamable-http",
-                    "MCP_ENDPOINT": "/mcp/",
-                    "DEFAULT_CODE_LANGUAGE": "javascript",
-                    "DEFAULT_HTTP_CLIENT": "fetch",
-                }: _defaults.get(name, name),
+                side_effect=_make_get_setting(SCHEMA_PATH_PREFIX="/v2/"),
             ),
             patch(
                 "drf_mcp_docs.management.commands.checkmcpconfig.django_settings",
