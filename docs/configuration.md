@@ -15,6 +15,7 @@ DRF_MCP_DOCS = {
     'SCHEMA_PATH_PREFIX': '/api/',
     'EXCLUDE_PATHS': [],
     'CACHE_SCHEMA': not DEBUG,
+    'CACHE_TTL': None,
 
     # ── Transport ──────────────────────────────────────────────
     'TRANSPORT': 'streamable-http',
@@ -138,6 +139,48 @@ DRF_MCP_DOCS = {
 
 In production (`DEBUG=False`), caching is enabled by default for performance.
 
+#### `CACHE_TTL`
+
+- **Type:** `int | None`
+- **Default:** `None` (no expiration)
+
+Time-to-live for the cached schema processor, in seconds. When set, the schema is automatically rebuilt after the TTL expires on the next request. When `None`, the cache lives forever (until the process restarts).
+
+```python
+DRF_MCP_DOCS = {
+    'CACHE_TTL': 300,  # Rebuild schema every 5 minutes
+}
+```
+
+This is useful when your API schema may change at runtime (e.g., dynamic endpoint registration) and you want stale data to eventually refresh without restarting the server.
+
+#### Programmatic Cache Invalidation
+
+For immediate cache invalidation (rather than waiting for TTL expiry), use the `invalidate_schema_cache()` function:
+
+```python
+from drf_mcp_docs import invalidate_schema_cache
+
+# Force the next get_processor() call to rebuild from scratch
+invalidate_schema_cache()
+```
+
+This is thread-safe and can be called from anywhere — signal handlers, management commands, views, etc.
+
+##### Example: invalidate on model change
+
+```python
+from django.db.models.signals import post_save
+from django.dispatch import receiver
+
+from drf_mcp_docs import invalidate_schema_cache
+from myapp.models import DynamicEndpoint
+
+@receiver(post_save, sender=DynamicEndpoint)
+def refresh_mcp_schema(sender, **kwargs):
+    invalidate_schema_cache()
+```
+
 ### Transport Settings
 
 #### `TRANSPORT`
@@ -215,6 +258,7 @@ DRF_MCP_DOCS = {
     'SCHEMA_ADAPTER': 'drf_mcp_docs.adapters.spectacular.SpectacularAdapter',
     'EXCLUDE_PATHS': ['/api/internal/', '/api/webhooks/'],
     'CACHE_SCHEMA': True,
+    'CACHE_TTL': 300,  # Refresh schema every 5 minutes
     'DEFAULT_CODE_LANGUAGE': 'typescript',
     'DEFAULT_HTTP_CLIENT': 'axios',
 }

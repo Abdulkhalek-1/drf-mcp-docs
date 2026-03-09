@@ -20,3 +20,6 @@ def get_mcp_server() -> FastMCP:
 
                 _server = create_mcp_server()
     return _server
+
+
+from drf_mcp_docs.server.instance import invalidate_schema_cache  # noqa: E402, F401

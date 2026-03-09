@@ -29,7 +29,7 @@ This page describes the internal architecture of drf-mcp-docs for contributors a
 
 ```
 src/drf_mcp_docs/
-├── __init__.py              # Version, default_app_config
+├── __init__.py              # Version, public API (invalidate_schema_cache)
 ├── apps.py                  # Django AppConfig
 ├── settings.py              # Settings reader with defaults
 ├── urls.py                  # ASGI mount helper
@@ -95,25 +95,29 @@ The MCP server uses the official `mcp` Python SDK's `FastMCP` class. Resources a
 ```python
 # server/instance.py
 _processor: SchemaProcessor | None = None
+_processor_cached_at: float | None = None
 _processor_lock = threading.Lock()
 
 def get_processor() -> SchemaProcessor:
-    global _processor
+    global _processor, _processor_cached_at
     cache = get_setting("CACHE_SCHEMA")
-    if _processor is not None and cache:
+    if _processor is not None and cache and not _is_cache_expired():
         return _processor
     with _processor_lock:
-        if _processor is not None and cache:
+        if _processor is not None and cache and not _is_cache_expired():
             return _processor
         adapter = get_adapter()
-        openapi_schema = adapter.get_schema()
+        openapi_schema = _filter_paths(adapter.get_schema())
         _processor = SchemaProcessor(openapi_schema)
+        _processor_cached_at = time.monotonic()
         return _processor
 ```
 
 - **`DEBUG=True`** (dev): Schema is regenerated on every request
 - **`DEBUG=False`** (prod): Schema is generated once and cached in the global `_processor`
-- **Thread safety**: Double-checked locking ensures safe concurrent access under multi-worker deployments
+- **TTL expiration**: When `CACHE_TTL` is set (seconds), the cached processor is automatically rebuilt after the TTL elapses. When `None` (default), the cache lives forever.
+- **Manual invalidation**: Call `invalidate_schema_cache()` to force-clear the cache from any thread (signal handlers, management commands, etc.)
+- **Thread safety**: Double-checked locking ensures safe concurrent access under multi-worker deployments. `invalidate_schema_cache()` acquires the same lock.
 
 Additionally, `SchemaProcessor` caches resolved `$ref` pointers internally (`_ref_cache`) to avoid redundant resolution of the same references.
 

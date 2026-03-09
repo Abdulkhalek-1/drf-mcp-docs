@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.2] - 2026-03-09
+
+### Added
+
+- **`CACHE_TTL` setting** — Optional time-to-live (in seconds) for the schema cache; when set, the cached schema processor is automatically rebuilt after the TTL expires (default: `None` — no expiration, preserving existing behavior)
+- **`invalidate_schema_cache()` function** — Public, thread-safe API to force-clear the cached schema processor on demand (e.g., from a Django signal handler or management command); importable from `drf_mcp_docs` or `drf_mcp_docs.server`
+- **Cache invalidation tests** — TTL expiration, manual invalidation, backward compatibility, top-level import, and concurrent invalidation stress test
+
 ## [0.1.1] - 2026-03-09
 
 ### Fixed

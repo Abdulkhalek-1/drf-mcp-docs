@@ -9,6 +9,7 @@ DEFAULTS = {
     "SCHEMA_PATH_PREFIX": "/api/",
     "EXCLUDE_PATHS": [],
     "CACHE_SCHEMA": True,
+    "CACHE_TTL": None,
     # Transport
     "TRANSPORT": "streamable-http",
     "MCP_ENDPOINT": "/mcp/",

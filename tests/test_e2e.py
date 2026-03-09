@@ -9,13 +9,14 @@ and integration issues that unit tests with mocked processors cannot detect.
 from __future__ import annotations
 
 import json
+import time
 
 import pytest
 
 import drf_mcp_docs.server.instance as instance_module
 from drf_mcp_docs.adapters.drf import DRFBuiltinAdapter
 from drf_mcp_docs.server import resources, tools
-from drf_mcp_docs.server.instance import get_processor
+from drf_mcp_docs.server.instance import get_processor, invalidate_schema_cache
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -49,8 +50,10 @@ def _parse(json_str: str):
 def reset_processor():
     """Clear the cached processor singleton before and after each test."""
     instance_module._processor = None
+    instance_module._processor_cached_at = None
     yield
     instance_module._processor = None
+    instance_module._processor_cached_at = None
 
 
 @pytest.fixture()
@@ -526,10 +529,85 @@ class TestSchemaCaching:
 
         # DEBUG=False -> caching on -> same instance
         instance_module._processor = None
+        instance_module._processor_cached_at = None
         settings.DEBUG = False
         proc3 = get_processor()
         proc4 = get_processor()
         assert proc3 is proc4
+
+    def test_cache_ttl_none_caches_forever(self, settings):
+        """CACHE_TTL=None (default) preserves current behavior: cache forever."""
+        settings.DRF_MCP_DOCS = {
+            "SCHEMA_ADAPTER": "drf_mcp_docs.adapters.drf.DRFBuiltinAdapter",
+            "SCHEMA_PATH_PREFIX": "/api/",
+            "EXCLUDE_PATHS": [],
+            "CACHE_SCHEMA": True,
+            "CACHE_TTL": None,
+        }
+        settings.REST_FRAMEWORK = {
+            "DEFAULT_SCHEMA_CLASS": "rest_framework.schemas.openapi.AutoSchema",
+        }
+        proc1 = get_processor()
+        proc2 = get_processor()
+        assert proc1 is proc2
+
+    def test_cache_ttl_expired_rebuilds(self, settings):
+        """When TTL has elapsed, get_processor() returns a new instance."""
+        settings.DRF_MCP_DOCS = {
+            "SCHEMA_ADAPTER": "drf_mcp_docs.adapters.drf.DRFBuiltinAdapter",
+            "SCHEMA_PATH_PREFIX": "/api/",
+            "EXCLUDE_PATHS": [],
+            "CACHE_SCHEMA": True,
+            "CACHE_TTL": 60,
+        }
+        settings.REST_FRAMEWORK = {
+            "DEFAULT_SCHEMA_CLASS": "rest_framework.schemas.openapi.AutoSchema",
+        }
+        proc1 = get_processor()
+
+        # Simulate TTL expiration by backdating the timestamp
+        instance_module._processor_cached_at = time.monotonic() - 120
+
+        proc2 = get_processor()
+        assert proc1 is not proc2
+
+    def test_cache_ttl_not_expired_returns_same(self, settings):
+        """When TTL has NOT elapsed, get_processor() returns the cached instance."""
+        settings.DRF_MCP_DOCS = {
+            "SCHEMA_ADAPTER": "drf_mcp_docs.adapters.drf.DRFBuiltinAdapter",
+            "SCHEMA_PATH_PREFIX": "/api/",
+            "EXCLUDE_PATHS": [],
+            "CACHE_SCHEMA": True,
+            "CACHE_TTL": 3600,
+        }
+        settings.REST_FRAMEWORK = {
+            "DEFAULT_SCHEMA_CLASS": "rest_framework.schemas.openapi.AutoSchema",
+        }
+        proc1 = get_processor()
+        proc2 = get_processor()
+        assert proc1 is proc2
+
+    def test_invalidate_schema_cache_clears_processor(self, settings):
+        """invalidate_schema_cache() forces rebuild on next get_processor() call."""
+        settings.DRF_MCP_DOCS = {
+            "SCHEMA_ADAPTER": "drf_mcp_docs.adapters.drf.DRFBuiltinAdapter",
+            "SCHEMA_PATH_PREFIX": "/api/",
+            "EXCLUDE_PATHS": [],
+            "CACHE_SCHEMA": True,
+        }
+        settings.REST_FRAMEWORK = {
+            "DEFAULT_SCHEMA_CLASS": "rest_framework.schemas.openapi.AutoSchema",
+        }
+        proc1 = get_processor()
+        invalidate_schema_cache()
+        proc2 = get_processor()
+        assert proc1 is not proc2
+
+    def test_invalidate_schema_cache_importable_from_top_level(self):
+        """The function should be importable from drf_mcp_docs directly."""
+        from drf_mcp_docs import invalidate_schema_cache as fn
+
+        assert callable(fn)
 
 
 # ---------------------------------------------------------------------------
@@ -625,6 +703,7 @@ class TestCrossAdapterConsistency:
     def test_all_adapters_find_product_endpoints(self, settings):
         for name, mcp_settings, rf_settings in self._get_adapter_configs(settings):
             instance_module._processor = None
+            instance_module._processor_cached_at = None
             settings.DRF_MCP_DOCS = mcp_settings
             settings.REST_FRAMEWORK = rf_settings
 
@@ -639,6 +718,7 @@ class TestCrossAdapterConsistency:
     def test_all_adapters_produce_schemas(self, settings):
         for name, mcp_settings, rf_settings in self._get_adapter_configs(settings):
             instance_module._processor = None
+            instance_module._processor_cached_at = None
             settings.DRF_MCP_DOCS = mcp_settings
             settings.REST_FRAMEWORK = rf_settings
 

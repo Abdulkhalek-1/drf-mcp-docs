@@ -183,5 +183,5 @@ Or for a standalone server on a different port:
 
 - The MCP endpoint does **not** require authentication by default — it only exposes API documentation, not data
 - Consider placing the MCP endpoint behind a firewall or VPN if your API schema is sensitive
-- The `CACHE_SCHEMA` setting (default: `True` in production) ensures the schema is generated once and reused
+- The `CACHE_SCHEMA` setting (default: `True` in production) ensures the schema is generated once and reused. Set `CACHE_TTL` (seconds) to automatically refresh the cache periodically, or call `invalidate_schema_cache()` to force an immediate refresh.
 - For high-availability setups, each ASGI worker holds its own cached schema copy
