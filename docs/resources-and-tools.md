@@ -258,7 +258,7 @@ Generate an example response for an endpoint.
 
 ### `generate_code_snippet`
 
-Generate frontend integration code for calling an API endpoint.
+Generate ready-to-use integration code for calling an API endpoint. Produces self-documenting functions with real types, proper auth handling, and usage examples.
 
 **Parameters:**
 
@@ -266,22 +266,29 @@ Generate frontend integration code for calling an API endpoint.
 |---|---|---|---|---|
 | `path` | string | yes | — | Endpoint path |
 | `method` | string | yes | — | HTTP method |
-| `language` | string | no | from settings | `"javascript"` or `"typescript"` |
-| `client` | string | no | from settings | `"fetch"`, `"axios"`, or `"ky"` |
+| `language` | string | no | from settings | `"javascript"`, `"typescript"`, or `"python"` |
+| `client` | string | no | from settings | JS/TS: `"fetch"`, `"axios"`, `"ky"` — Python: `"requests"`, `"httpx"` |
 
-**Returns:** Object with `language`, `client`, and `code` fields.
+**Returns:** Object with `language`, `client`, `code`, and `metadata` fields.
 
-**Example response (fetch + JavaScript):**
+The `code` field contains the full snippet (imports, type definitions, JSDoc/docstring, function, usage example). The `metadata` field provides structured information about the endpoint, auth, parameters, and response.
 
 ```json
 {
   "language": "javascript",
   "client": "fetch",
-  "code": "async function productsList(params = {}) {\n  const queryString = new URLSearchParams(params).toString();\n  const url = '/api/products/' + (queryString ? `?${queryString}` : '');\n\n  const response = await fetch(url, {\n    method: 'GET',\n    headers: {\n      'Authorization': `Bearer ${token}`,\n    },\n  });\n\n  if (!response.ok) {\n    throw new Error(`HTTP ${response.status}: ${response.statusText}`);\n  }\n\n  return response.json();\n}"
+  "code": "/** ... */\nasync function productsList(...) { ... }",
+  "metadata": {
+    "function_name": "productsList",
+    "endpoint": {"path": "/api/products/", "method": "GET", "summary": "List all products", "deprecated": false},
+    "auth": {"required": true, "methods": [{"type": "bearer", "description": "Bearer token (JWT)"}]},
+    "parameters": {"path": [], "query": [{"name": "page", "type": "integer", "required": false}], "body_required": false},
+    "response": {"success_status": "200", "description": "Successful response"}
+  }
 }
 ```
 
-See [Code Generation](code-generation.md) for details on each client/language combo.
+See [Code Generation](code-generation.md) for full examples in all languages and clients.
 
 ### `list_schemas`
 

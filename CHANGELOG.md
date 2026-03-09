@@ -30,6 +30,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Python code generation** — New `requests` (sync) and `httpx` (async) HTTP client generators with TypedDict definitions, type hints, and Google-style docstrings
+- **Real TypeScript interfaces** — Code snippets now generate actual TypeScript interfaces from OpenAPI schemas instead of placeholder types (`RequestData`, `QueryParams`)
+- **JSDoc and docstrings** — Generated code includes JSDoc (JS/TS) or Google-style docstrings (Python) with `@param`, `@returns`, `@deprecated`, `@throws` annotations
+- **Usage examples** — Generated snippets include commented usage examples with realistic data from the schema
+- **Base URL from spec** — Generated code pulls the base URL from the OpenAPI `servers[0].url` field
+- **Auth method handling** — Code generation now supports bearer, basic, and apiKey authentication based on actual security schemes (not just hardcoded Bearer)
+- **Enriched JSON output** — `generate_code_snippet` returns a `metadata` object with function name, endpoint info, auth details, parameter breakdown, and response summary
+- **Auto-client selection** — Automatically selects the appropriate HTTP client for the language (e.g., `python` + `fetch` → `requests`)
 - **`$ref` caching** — `SchemaProcessor` now caches resolved `$ref` pointers for improved performance on large schemas
 - **yasg logging** — Unknown parameter locations in Swagger 2.0 → OpenAPI 3.0 conversion now emit warnings via `logging`
 - **Management command tests** — New `tests/test_management.py` covering `runmcpserver` command
