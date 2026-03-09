@@ -116,9 +116,25 @@ def create_mcp_server() -> FastMCP:
         name=name,
         instructions=instructions
         or (
-            "This server provides API documentation for a Django REST Framework project. "
-            "Use resources to browse the API structure and tools to search, get details, "
-            "and generate code snippets for frontend integration."
+            "This server provides API documentation for a Django REST Framework project.\n"
+            "\n"
+            "## Recommended workflow\n"
+            "1. Start with the `api://overview` resource to understand the API "
+            "(title, version, base URL, auth methods, endpoint count).\n"
+            "2. Browse `api://endpoints` to list all endpoints, or call "
+            "`search_endpoints` to find endpoints by keyword, HTTP method, or tag.\n"
+            "3. Get full details for a specific endpoint with `get_endpoint_detail` "
+            "or the `api://endpoints/{method}/{path}` resource.\n"
+            "4. Use `get_request_example` and `get_response_example` "
+            "to see example request/response payloads.\n"
+            "5. Generate ready-to-use integration code with `generate_code_snippet` "
+            "(supports javascript/typescript/python with fetch/axios/ky/requests/httpx).\n"
+            "6. Check `api://auth` for authentication requirements.\n"
+            "\n"
+            "## Additional resources\n"
+            "- `api://schemas` lists all data model schemas\n"
+            "- `api://schemas/{name}` returns a full schema definition\n"
+            "- `list_schemas` and `get_schema_detail` tools provide programmatic schema access"
         ),
     )
 

@@ -56,67 +56,71 @@ def mount_mcp(django_app, mcp=None, path: str | None = None):
     mcp.settings.streamable_http_path = mcp_path.rstrip("/") or "/"
 
     mcp_app = mcp.streamable_http_app()
+    session_manager = mcp.session_manager
+
+    # Session manager lifecycle state (shared via closure)
+    _ready = asyncio.Event()
+    _shutdown = asyncio.Event()
+    _failed = False
+    _mcp_task = None
+    _init_lock = asyncio.Lock()
+
+    async def _ensure_session_manager_running():
+        """Start the MCP session manager if not already running.
+
+        This is called both from the lifespan handler (normal ASGI servers)
+        and before MCP HTTP requests (fallback for servers like Daphne that
+        do not send lifespan events).
+        """
+        nonlocal _failed, _mcp_task
+
+        if _ready.is_set():
+            return
+
+        async with _init_lock:
+            if _ready.is_set():
+                return
+
+            async def _run():
+                nonlocal _failed
+                try:
+                    async with session_manager.run():
+                        logger.debug("MCP session manager started")
+                        _ready.set()
+                        await _shutdown.wait()
+                except Exception:
+                    logger.exception("MCP session manager failed to start")
+                    _failed = True
+                    _ready.set()
+
+            _mcp_task = asyncio.create_task(_run())
+            await _ready.wait()
 
     async def _handle_lifespan(scope, receive, send):
         """Handle lifespan events for the MCP app."""
-        startup_complete = asyncio.Event()
-        shutdown_event = asyncio.Event()
-        mcp_failed = asyncio.Event()
-        first_receive = True
+        await _ensure_session_manager_running()
 
-        async def mcp_lifespan():
-            nonlocal first_receive
-
-            async def mcp_receive():
-                nonlocal first_receive
-                if first_receive:
-                    first_receive = False
-                    return {"type": "lifespan.startup"}
-                # Block until shutdown is signaled
-                await shutdown_event.wait()
-                return {"type": "lifespan.shutdown"}
-
-            async def mcp_send(message):
-                if message["type"] == "lifespan.startup.complete":
-                    logger.debug("MCP lifespan startup complete")
-                    startup_complete.set()
-                elif message["type"] == "lifespan.startup.failed":
-                    logger.warning("MCP lifespan startup failed")
-                    mcp_failed.set()
-                    startup_complete.set()
-
-            try:
-                await mcp_app(scope, mcp_receive, mcp_send)
-            except asyncio.CancelledError:
-                pass
-            except Exception:
-                if not startup_complete.is_set():
-                    mcp_failed.set()
-                    startup_complete.set()
-
-        mcp_task = asyncio.create_task(mcp_lifespan())
-        await startup_complete.wait()
-
-        if mcp_failed.is_set():
+        if _failed:
             await send({"type": "lifespan.startup.failed", "message": "MCP server failed to start"})
             return
 
         await send({"type": "lifespan.startup.complete"})
 
-        # Wait for shutdown signal from uvicorn
+        # Wait for shutdown signal from the ASGI server
         while True:
             message = await receive()
             if message["type"] == "lifespan.shutdown":
                 break
 
         # Signal MCP to shut down gracefully, then cancel if it doesn't exit
-        shutdown_event.set()
-        try:
-            await asyncio.wait_for(asyncio.shield(mcp_task), timeout=5.0)
-        except (asyncio.TimeoutError, asyncio.CancelledError):
-            mcp_task.cancel()
-            with contextlib.suppress(asyncio.CancelledError):
-                await mcp_task
+        _shutdown.set()
+        if _mcp_task is not None:
+            try:
+                await asyncio.wait_for(asyncio.shield(_mcp_task), timeout=5.0)
+            except (asyncio.TimeoutError, asyncio.CancelledError):
+                _mcp_task.cancel()
+                with contextlib.suppress(asyncio.CancelledError):
+                    await _mcp_task
 
         logger.debug("MCP lifespan shutdown complete")
         await send({"type": "lifespan.shutdown.complete"})
@@ -124,6 +128,7 @@ def mount_mcp(django_app, mcp=None, path: str | None = None):
     async def asgi_app(scope, receive, send):
         scope_type = scope["type"]
         if scope_type == "http" and scope["path"].startswith(mcp_path.rstrip("/")):
+            await _ensure_session_manager_running()
             logger.debug("Routing request to MCP: %s", scope["path"])
             await mcp_app(scope, receive, send)
         elif scope_type == "lifespan":
