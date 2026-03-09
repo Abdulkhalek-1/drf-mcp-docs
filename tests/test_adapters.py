@@ -173,3 +173,41 @@ class TestGetAdapter:
             mock_setting.return_value = "drf_mcp_docs.adapters.drf.DRFBuiltinAdapter"
             adapter = get_adapter()
             assert isinstance(adapter, DRFBuiltinAdapter)
+
+    def test_settings_override_bad_module(self):
+        with patch("drf_mcp_docs.adapters.get_setting") as mock_setting:
+            mock_setting.return_value = "nonexistent.module.Adapter"
+            with pytest.raises(ImportError, match="Could not import module"):
+                get_adapter()
+
+    def test_settings_override_bad_class(self):
+        with patch("drf_mcp_docs.adapters.get_setting") as mock_setting:
+            mock_setting.return_value = "drf_mcp_docs.adapters.drf.NonexistentClass"
+            with pytest.raises(ImportError, match="has no class"):
+                get_adapter()
+
+
+class TestYasgAdapterLogging:
+    def test_unknown_param_location_logs_warning(self, caplog):
+        import logging
+
+        swagger = {
+            "swagger": "2.0",
+            "info": {"title": "Test", "version": "1.0"},
+            "basePath": "/api",
+            "paths": {
+                "/test": {
+                    "get": {
+                        "parameters": [
+                            {"name": "x", "in": "unknown_location", "type": "string"},
+                        ],
+                        "responses": {"200": {"description": "OK"}},
+                    }
+                }
+            },
+        }
+        adapter = YasgAdapter()
+        with caplog.at_level(logging.WARNING, logger="drf_mcp_docs.adapters.yasg"):
+            adapter._convert_swagger_to_openapi3(swagger)
+        assert "Unknown parameter location" in caplog.text
+        assert "unknown_location" in caplog.text
